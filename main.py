@@ -1,5 +1,5 @@
 import socket
-from qpy.event_manager import EVENT_ACCOUNT, EVENT_BAR, EVENT_CONTRACT, EVENT_ORDER, EVENT_TICK, EVENT_TRADE, EventManager, Event
+from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK, EVENT_DATASOURCE, EVENT_MARKET, EVENT_TIMER, EventManager, Event
 
 from qpy.quik_bridge import QuikBridge, QuikConnectorTest
 
@@ -7,12 +7,13 @@ class QuikConnectorTest(object):
     def __init__(self, bridge: QuikBridge):
         self.qbridge = bridge
         self.event_manager = self.qbrige.event_manager
+        self.subscriptions = {}
         self.msgId = 0
         self.sayHelloMsgId = None
         self.msgWasSent = False
-        self.clsListReqId = None
+        self.is_cls_list_request_sent = False
         self.clsList = None
-        self.createDsReqId = None
+        self.is_ds_request_sent = False
         self.ds = None
         self.setUpdCBReqId = None
         self.updCBInstalled = False
@@ -21,94 +22,106 @@ class QuikConnectorTest(object):
         self.register_handlers()
 
     def register_handlers(self):
-        self.event_manager.register(EVENT_ACCOUNT, self.ansArrived)
-        self.event_manager.register(EVENT_CONTRACT, self.ansArrived)
-        self.event_manager.register(EVENT_BAR, self.barArrived)
-        self.event_manager.register(EVENT_TICK, self.reqArrived)
-        self.event_manager.register(EVENT_TRADE, self.ansArrived)
-        self.event_manager.register(EVENT_ORDER, self.ansArrived)
+        self.event_manager.register(EVENT_TIMER, self.update_subscriptions)
+        self.event_manager.register(EVENT_ORDERBOOK, self.on_orderbook_update)
+        self.event_manager.register(EVENT_MARKET, self.on_classes_list)
+        self.event_manager.register(EVENT_BAR, self.reqArrived)
+        self.event_manager.register(EVENT_DATASOURCE, self.on_ds_created)
+        self.event_manager.register(EVENT_CALLBACK_INSTALLED, self.on_ds_update_handler_installed)
+        self.event_manager.register(EVENT_CLOSE, self.on_ds_close)
+        
+    def update_subsciptions(self):
+        if len(self.subscriptions) == 0:
+            return
+        for sub_type, subscriptions in self.subscriptions.items():
+            for row in subscriptions:
+                if sub_type == "orderbook":
+                    self.qbridge.getOrderBook(row["class_code"], row["sec_code"])
+
+    def on_orderbook_update(self, event: Event):
+        self.ds = event.data['ds']
+
+    def on_classes_list(self, event: Event):
+        self.clsList = event.data['classes'].split(",")
+        self.clsList = list(filter(None, self.clsList))
+        print("Received", len(self.clsList), "classes")
+
+    def on_ds_created(self, event: Event):
+        self.ds = event.data['ds']
+
+    def on_ds_close(self, event: Event):
+        self.ds = None
+        self.end()
+
+    def on_ping(self, event: Event):
+        print("hello sent")
+
+    def on_ds_update_handler_installed(self, event: Event):
+        print("update handler installed")
 
     def nextStep(self):
         if not self.msgWasSent:
-            self.sayHello()
+            self.test_say_hello()
             self.msgWasSent = True
         else:
-            if self.clsList is None:
-                if self.clsListReqId is None:
-                    self.getClassesList()
-            elif self.ds is None:
-                if self.createDsReqId is None:
-                    self.createDs()
+            if self.clsList is None and not self.is_cls_list_request_sent:
+                self.test_get_class_list()
+            elif self.ds is None and not self.is_ds_request_sent:
+                self.test_create_ds()
             elif not self.updCBInstalled:
-                self.setDsUpdateCallback()
+                self.test_set_callback()
+            elif len(self.subscriptions) == 0:
+                self.subscribe("orderbook", "TQBR", "SBER")
             elif self.updCnt >= 10:
-                if self.closeDsMsgId is None:
-                    self.closeDs()
+                if not self.is_close_request_sent:
+                    self.test_close_ds()
 
-    def barArrived(self, event: Event):
+    def on_bar_arrived(self, event: Event):
         pass
 
 
-    def reqArrived(self, id, data):
-        super().reqArrived(id, data)
-        if data["method"] == 'invoke':
-            if data["function"] == 'sberUpdated':
-                idx = data["arguments"][0]
-                ans = {"method": "return", "result": self.sberUpdated(idx)}
-                self.sendAns(id, ans)
+    def test_say_hello(self):
+        msg_id = self.qbridge.sayHello()
+        self.sayHelloMsgId = msg_id
+        self.updCnt += 1
 
+    def test_get_class_list(self):
+        msg_id = self.qbridge.getClassesList()
+        self.is_cls_list_request_sent = msg_id > 0
+        self.updCnt += 1
 
-    def ansArrived(self, id, data):
-        super().ansArrived(id, data)
-        if id == self.clsListReqId:
-            self.clsList = data['result'][0].split(",")
-            self.clsList = list(filter(None, self.clsList))
-            print("Received", len(self.clsList), "classes")
-        elif id == self.createDsReqId:
-            self.ds = data['result'][0]
-        elif id == self.closeDsMsgId:
-            self.end()
-        elif id == self.sayHelloMsgId:
-            print("hello sent")
-        elif id == self.setUpdCBReqId:
-            print("update handler installed")
-        else:
-            self.updCnt += 1
-            # self.end()
+    def test_create_ds(self):
+        msg_id = self.qbridge.createDs("TQBR", "SBER", 5)
+        self.is_ds_request_sent = msg_id > 0
+        self.updCnt += 1
 
-    def sayHello(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "function": "PrintDbgStr", "arguments": ["Hello from python!"]})
-        # self.sendReq(self.msgId, {"method": "invoke", "function": "message", "arguments": ["Hello from python!", 1]})
-        self.sayHelloMsgId = self.msgId
-
-    def getClassesList(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "function": "getClassesList", "arguments": []})
-        self.clsListReqId = self.msgId
-
-    def createDs(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "function": "CreateDataSource", "arguments": ["TQBR", "SBER", 5]})
-        self.createDsReqId = self.msgId
-
-    def setDsUpdateCallback(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "object": self.ds, "function": "SetUpdateCallback", "arguments": [{"type": "callable", "function": "sberUpdated"}]})
-        self.setUpdCBReqId = self.msgId
-        self.updCBInstalled = True
+    def test_set_callback(self):
+        msg_id = self.qbridge.setDsUpdateCallback(self.ds, self.sberUpdated)
+        self.updCBInstalled = msg_id > 0
+        self.updCnt += 1
 
     def closeDs(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "object": self.ds, "function": "Close", "arguments": []})
-        self.closeDsMsgId = self.msgId
+        if self.ds is None:
+            return
+        msg_id = self.qbridge.closeDs(self.ds)
+        self.is_close_request_sent = msg_id > 0
 
     def sberUpdated(self, index):
         print("sberUpdated:", index)
+        self.qbridge.getBar(self.ds, index)
         req = {"method": "invoke", "object": self.ds, "function": "C", "arguments": [index]}
         self.msgId += 1
         self.sendReq(self.msgId, req)
         return True
+
+    def subscribe(self, subscription_type, class_code, sec_code):
+        if subscription_type not in self.subscriptions.keys():
+            self.subscriptions[subscription_type] = ()
+        if subscription_type == "orderbook":
+            msg_id = self.qbridge.subscribeToOrderBook(class_code, sec_code)
+            self.subscriptions[subscription_type].add(
+                {"class_code": class_code, "sec_code": sec_code, "msg_id": msg_id}
+            )
 
 if __name__ == "main":
     # Create a TCP/IP socket
@@ -121,6 +134,7 @@ if __name__ == "main":
     # server_address = ('37.193.88.181', 57578)
     print('connecting to %s port %d' % server_address)
     sock.connect(server_address)
+    sock.setblocking(0)
 
     event_man = EventManager()
     bridge = QuikBridge(sock, event_man)

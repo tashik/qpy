@@ -10,9 +10,9 @@ class MessageIndexer(object):
 
     def get_index(self, id: int = 0) -> int:
         current_time_index = (datetime.now() - datetime.today()).total_seconds() * 1000
-        self.locker.acquire()
-        if current_time_index <= self.last_time_index:
-            current_time_index = self.last_time_index + 1
-        self.last_time_index = current_time_index
-        self.locker.release()
+        with self.locker:
+            if current_time_index <= self.last_time_index:
+                current_time_index = self.last_time_index + 1
+            self.last_time_index = current_time_index
+        
         return self.max_id * current_time_index + id

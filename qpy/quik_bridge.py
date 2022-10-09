@@ -1,6 +1,7 @@
+import json
 from dataclasses import dataclass
 from typing import Any, Callable
-from qpy.event_manager import EventManager, Event, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
+from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EventManager, Event, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
 from qpy.message_indexer import MessageIndexer
 from qpy.protocol_handler import JsonProtocolHandler
 
@@ -62,9 +63,29 @@ class QuikBridge(object):
         return self.send_request({"method": "invoke", "object": datasource, "function": "SetUpdateCallback", "arguments": [{"type": "callable", "function": "on_update"}]},
         {"message_type": "datasource_callback", "datasource": datasource, "callback": callback})
 
+    def getBar(self, datasource, bar_func, bar_index):
+        return self.send_request({"method": "invoke", "object": datasource, "function": bar_func, "arguments": [bar_index]}, {"message_type": "bar_"+bar_func, "datasoruce": datasource})
 
     def closeDs(self, datasource):
         return self.send_request({"method": "invoke", "object": datasource, "function": "Close", "arguments": []}, {"message_type": "close_datasource", "datasource": datasource})
+
+    def subscribeToOrderBook(self, class_code, sec_code):
+        return self.send_request(
+            {"method": "invoke", "function": "Subscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+            {"message_type": "subscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
+            )
+
+    def unsubscribeToOrderBook(self, class_code, sec_code):
+        return self.send_request(
+            {"method": "invoke", "function": "Unsubscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+            {"message_type": "unsubscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
+            )
+
+    def getOrderBook(self, class_code, sec_code):
+        return self.send_request(
+            {"method": "invoke", "function": "getQuotesLevel2", "arguments": [class_code, sec_code]}, 
+            {"message_type": "get_orderbook", "class_code": class_code, "sec_code": sec_code}
+            )
 
     def send_request(self, data: dict, meta_data: dict):
         msg_id = self.indexer.get_index()
@@ -73,106 +94,44 @@ class QuikBridge(object):
         return msg_id
 
     def on_req(self, id, data):
+        if data["method"] == "invoke":
+            quik_message = self.message_registry[str(id)] # type: QuikBridgeMessage
+            if quik_message.callback is not None:
+                quik_message.callback(data["arguments"][0])
+
         self.phandler.sendAns(id, {"method": "return", "result": True})
 
     def on_resp(self, id, data):
-        quik_message = self.message_registry[str(id)]
-
+        quik_message = self.message_registry[str(id)] # type: QuikBridgeMessage
+        event_data = {
+            "sec_code": quik_message.sec_code,
+            "class_code": quik_message.class_code,
+            "interval": quik_message.interval
+        }
+        event_type = EVENT_RESP_ARRIVED
         if quik_message:
-            # тут будет self.event_manager.put в зависимости от пришедших данных
-            pass
-        pass
+            if quik_message.message_type == "create_datasource":
+                event_data["ds"] = data['result'][0]
+                event_type = EVENT_DATASOURCE_SET
+            elif quik_message.message_type == "classes_list":
+                event_data["classes"] = data["result"][0]
+                event_type = EVENT_MARKET
+            elif quik_message.message_type == "order_book":
+                for entry in data["result"].values():
+                    snapshot = json.load(entry)
+                    if "bid_count" in snapshot.keys() and "offer_count" in snapshot.keys():
+                        event_type = EVENT_ORDERBOOK
+                        event_data["order_book"] = snapshot
+            elif quik_message.message_type == "close_datasource":
+                event_type = EVENT_CLOSE
+            elif quik_message.message_type == "datasource_callback":
+                event_type = EVENT_CALLBACK_INSTALLED
+            elif quik_message.message_type == "hello":
+                event_type = EVENT_PING
+            elif quik_message.message_type == "bar_C":
+                event_type = EVENT_BAR
+                event_data["close"] = data["result"][0]
 
-
-class QuikConnectorTest(JsonProtocolHandler):
-    def __init__(self, sock):
-        super().__init__(sock)
-        self.msgId = 0
-        self.sayHelloMsgId = None
-        self.msgWasSent = False
-        self.clsListReqId = None
-        self.clsList = None
-        self.createDsReqId = None
-        self.ds = None
-        self.setUpdCBReqId = None
-        self.updCBInstalled = False
-        self.updCnt = 0
-        self.closeDsMsgId = None
-
-    def nextStep(self):
-        if not self.msgWasSent:
-            self.sayHello()
-            self.msgWasSent = True
-        else:
-            if self.clsList is None:
-                if self.clsListReqId is None:
-                    self.getClassesList()
-            elif self.ds is None:
-                if self.createDsReqId is None:
-                    self.createDs()
-            elif not self.updCBInstalled:
-                self.setDsUpdateCallback()
-            elif self.updCnt >= 10:
-                if self.closeDsMsgId is None:
-                    self.closeDs()
-
-    def reqArrived(self, id, data):
-        super().reqArrived(id, data)
-        if data["method"] == 'invoke':
-            if data["function"] == 'sberUpdated':
-                idx = data["arguments"][0]
-                ans = {"method": "return", "result": self.sberUpdated(idx)}
-                self.sendAns(id, ans)
-
-
-    def ansArrived(self, id, data):
-        super().ansArrived(id, data)
-        if id == self.clsListReqId:
-            self.clsList = data['result'][0].split(",")
-            self.clsList = list(filter(None, self.clsList))
-            print("Received", len(self.clsList), "classes")
-        elif id == self.createDsReqId:
-            self.ds = data['result'][0]
-        elif id == self.closeDsMsgId:
-            self.end()
-        elif id == self.sayHelloMsgId:
-            print("hello sent")
-        elif id == self.setUpdCBReqId:
-            print("update handler installed")
-        else:
-            self.updCnt += 1
-            # self.end()
-
-    def sayHello(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "function": "PrintDbgStr", "arguments": ["Hello from python!"]})
-        # self.sendReq(self.msgId, {"method": "invoke", "function": "message", "arguments": ["Hello from python!", 1]})
-        self.sayHelloMsgId = self.msgId
-
-    def getClassesList(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "function": "getClassesList", "arguments": []})
-        self.clsListReqId = self.msgId
-
-    def createDs(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "function": "CreateDataSource", "arguments": ["TQBR", "SBER", 5]})
-        self.createDsReqId = self.msgId
-
-    def setDsUpdateCallback(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "object": self.ds, "function": "SetUpdateCallback", "arguments": [{"type": "callable", "function": "sberUpdated"}]})
-        self.setUpdCBReqId = self.msgId
-        self.updCBInstalled = True
-
-    def closeDs(self):
-        self.msgId += 1
-        self.sendReq(self.msgId, {"method": "invoke", "object": self.ds, "function": "Close", "arguments": []})
-        self.closeDsMsgId = self.msgId
-
-    def sberUpdated(self, index):
-        print("sberUpdated:", index)
-        req = {"method": "invoke", "object": self.ds, "function": "C", "arguments": [index]}
-        self.msgId += 1
-        self.sendReq(self.msgId, req)
-        return True
+            event = Event(event_type, event_data)
+            self.event_manager.put(event)
+        
