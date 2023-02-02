@@ -1,13 +1,13 @@
 import socket
-from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK, EVENT_DATASOURCE, EVENT_MARKET, EVENT_TIMER, EventManager, Event
+from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_TIMER, EventManager, Event
 
-from qpy.quik_bridge import QuikBridge, QuikConnectorTest
+from qpy.quik_bridge import QuikBridge
 
 class QuikConnectorTest(object):
     def __init__(self, bridge: QuikBridge):
         self.qbridge = bridge
-        self.event_manager = self.qbrige.event_manager
-        self.subscriptions = {}
+        self.event_manager = self.qbridge.event_manager
+        self.subscriptions = dict()
         self.msgId = 0
         self.sayHelloMsgId = None
         self.msgWasSent = False
@@ -19,17 +19,9 @@ class QuikConnectorTest(object):
         self.updCBInstalled = False
         self.updCnt = 0
         self.closeDsMsgId = None
+        self.weEnded = False
         self.register_handlers()
 
-    def register_handlers(self):
-        self.event_manager.register(EVENT_TIMER, self.update_subscriptions)
-        self.event_manager.register(EVENT_ORDERBOOK, self.on_orderbook_update)
-        self.event_manager.register(EVENT_MARKET, self.on_classes_list)
-        self.event_manager.register(EVENT_BAR, self.reqArrived)
-        self.event_manager.register(EVENT_DATASOURCE, self.on_ds_created)
-        self.event_manager.register(EVENT_CALLBACK_INSTALLED, self.on_ds_update_handler_installed)
-        self.event_manager.register(EVENT_CLOSE, self.on_ds_close)
-        
     def update_subsciptions(self):
         if len(self.subscriptions) == 0:
             return
@@ -51,7 +43,8 @@ class QuikConnectorTest(object):
 
     def on_ds_close(self, event: Event):
         self.ds = None
-        self.end()
+        self.qbridge.phandler.end()
+        self.weEnded = True
 
     def on_ping(self, event: Event):
         print("hello sent")
@@ -59,6 +52,18 @@ class QuikConnectorTest(object):
     def on_ds_update_handler_installed(self, event: Event):
         print("update handler installed")
 
+    def on_bar_arrived(self, event: Event):
+        pass
+
+    def register_handlers(self):
+        self.event_manager.register(EVENT_TIMER, self.update_subsciptions)
+        self.event_manager.register(EVENT_ORDERBOOK, self.on_orderbook_update)
+        self.event_manager.register(EVENT_MARKET, self.on_classes_list)
+        self.event_manager.register(EVENT_BAR, self.on_bar_arrived)
+        self.event_manager.register(EVENT_DATASOURCE_SET, self.on_ds_created)
+        self.event_manager.register(EVENT_CALLBACK_INSTALLED, self.on_ds_update_handler_installed)
+        self.event_manager.register(EVENT_CLOSE, self.on_ds_close)
+        
     def nextStep(self):
         if not self.msgWasSent:
             self.test_say_hello()
@@ -75,9 +80,6 @@ class QuikConnectorTest(object):
             elif self.updCnt >= 10:
                 if not self.is_close_request_sent:
                     self.test_close_ds()
-
-    def on_bar_arrived(self, event: Event):
-        pass
 
 
     def test_say_hello(self):
@@ -116,14 +118,14 @@ class QuikConnectorTest(object):
 
     def subscribe(self, subscription_type, class_code, sec_code):
         if subscription_type not in self.subscriptions.keys():
-            self.subscriptions[subscription_type] = ()
+            self.subscriptions[subscription_type] = []
         if subscription_type == "orderbook":
             msg_id = self.qbridge.subscribeToOrderBook(class_code, sec_code)
-            self.subscriptions[subscription_type].add(
+            self.subscriptions[subscription_type].append(
                 {"class_code": class_code, "sec_code": sec_code, "msg_id": msg_id}
             )
 
-if __name__ == "main":
+if __name__ == "__main__":
     # Create a TCP/IP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -142,7 +144,7 @@ if __name__ == "main":
 
     sock.setblocking(0)
     while not tester.weEnded:
-        rrRes = tester.readyRead()
+        rrRes = tester.qbridge.phandler.readyRead()
         if not rrRes:
             tester.nextStep()
 

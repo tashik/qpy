@@ -48,7 +48,7 @@ class QuikBridge(object):
             msg.callback = meta_data["callback"]
 
         self.message_registry[str(id)] = msg
-
+    
     def sayHello(self):
         return self.send_request({"method": "invoke", "function": "PrintDbgStr", "arguments": ["Hello from python!"]}, {"message_type": "hello"})
 
