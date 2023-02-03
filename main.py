@@ -22,7 +22,7 @@ class QuikConnectorTest(object):
         self.weEnded = False
         self.register_handlers()
 
-    def update_subsciptions(self):
+    def update_subsciptions(self, event: Event):
         if len(self.subscriptions) == 0:
             return
         for sub_type, subscriptions in self.subscriptions.items():
@@ -32,6 +32,7 @@ class QuikConnectorTest(object):
 
     def on_orderbook_update(self, event: Event):
         self.ds = event.data['ds']
+        print(f'OrderBookArrived: {event.to_json}')
 
     def on_classes_list(self, event: Event):
         self.clsList = event.data['classes'].split(",")
@@ -139,6 +140,7 @@ if __name__ == "__main__":
     sock.setblocking(0)
 
     event_man = EventManager()
+    event_man.start()
     bridge = QuikBridge(sock, event_man)
     tester = QuikConnectorTest(bridge)
 

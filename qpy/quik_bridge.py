@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EventManager, Event, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
 from qpy.message_indexer import MessageIndexer
-from qpy.protocol_handler import JsonProtocolHandler
+from qpy.protocol_handler import JsonProtocolHandler, QMessage
 
 @dataclass
 class QuikBridgeMessage(object):
@@ -93,7 +93,9 @@ class QuikBridge(object):
         self.phandler.sendReq(msg_id, data)
         return msg_id
 
-    def on_req(self, id, data):
+    def on_req(self, event: Event):
+        id = event.data.id
+        data = event.data.data
         if data["method"] == "invoke":
             quik_message = self.message_registry[str(id)] # type: QuikBridgeMessage
             if quik_message.callback is not None:
@@ -101,8 +103,14 @@ class QuikBridge(object):
 
         self.phandler.sendAns(id, {"method": "return", "result": True})
 
-    def on_resp(self, id, data):
-        quik_message = self.message_registry[str(id)] # type: QuikBridgeMessage
+    def on_resp(self, event: Event):
+        if not isinstance(event.data, QMessage):
+            return
+        data = event.data.data
+        quik_message = None
+        
+        if event.data.id is not None:
+            quik_message = self.message_registry[str(event.data.id)] # type: QuikBridgeMessage
         event_data = {
             "sec_code": quik_message.sec_code,
             "class_code": quik_message.class_code,

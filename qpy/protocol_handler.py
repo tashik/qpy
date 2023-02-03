@@ -29,7 +29,7 @@ class JsonProtocolHandler:
         jobj = {"id": id, "type": "req", "data": data}
         stosend = json.dumps(jobj, separators=(',', ':'))
         if showInLog:
-            print(stosend)
+            print(f"SEND: {stosend}")
         self.sock.send(stosend.encode("utf-8"))
 
     def sendAns(self, id, data, showInLog=True):
@@ -38,7 +38,7 @@ class JsonProtocolHandler:
         jobj = {"id": id, "type": "ans", "data": data}
         stosend = json.dumps(jobj, separators=(',', ':'))
         if showInLog:
-            print(stosend)
+            print(f"REPLY: {stosend}")
         self.sock.send(stosend.encode("utf-8"))
 
     def sendVer(self, ver):
@@ -63,13 +63,16 @@ class JsonProtocolHandler:
         event = Event(EVENT_REQ_ARRIVED, QMessage(id, data))
         self.event_manager.put(event)
         print("REQ {:d}:".format(id))
-        print(data)
+        print("REQ CONTENT: " + json.dumps(data))
 
     def ansArrived(self, id, data):
+        if len(data) == 0: 
+            print('empty resp')
+            return
         event = Event(EVENT_RESP_ARRIVED, QMessage(id, data))
         self.event_manager.put(event)
         print("ANS {:d}:".format(id))
-        print(data)
+        print("ANS CONTENT: " + json.dumps(data))
 
     def processBuffer(self):
         try:
