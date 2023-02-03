@@ -25,7 +25,10 @@ class QuikConnectorTest(object):
         self.register_handlers()
 
     def on_orderbook_update(self, event: Event):
+        self.updCnt += 1
         print(f'OrderBookArrived: {event.data["sec_code"]}')
+        if self.updCnt > 5 and not self.is_close_request_sent:
+            self.closeDs()
 
     def on_classes_list(self, event: Event):
         self.clsList = event.data['classes'].split(",")
@@ -44,7 +47,6 @@ class QuikConnectorTest(object):
         print("hello sent")
 
     def on_ds_update_handler_installed(self, event: Event):
-        self.updCnt += 1
         print("update handler installed")
 
     def on_bar_arrived(self, event: Event):
@@ -79,22 +81,18 @@ class QuikConnectorTest(object):
     def test_say_hello(self):
         msg_id = self.qbridge.sayHello()
         self.sayHelloMsgId = msg_id
-        self.updCnt += 1
 
     def test_get_class_list(self):
         msg_id = self.qbridge.getClassesList()
         self.is_cls_list_request_sent = msg_id > 0
-        self.updCnt += 1
 
     def test_create_ds(self):
         msg_id = self.qbridge.createDs("SPBFUT", "SiH3", 5)
         self.is_ds_request_sent = msg_id > 0
-        self.updCnt += 1
 
     def test_set_callback(self):
         msg_id = self.qbridge.setDsUpdateCallback(self.ds, self.sberUpdated)
         self.updCBInstalled = msg_id > 0
-        self.updCnt += 1
 
     def closeDs(self):
         if self.ds is None:
@@ -136,5 +134,6 @@ if __name__ == "__main__":
         rrRes = tester.qbridge.phandler.readyRead()
         if not rrRes:
             tester.nextStep()
-
+    
+    event_man.stop()
     print("finished")
