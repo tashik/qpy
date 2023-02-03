@@ -21,6 +21,7 @@ class QuikConnectorTest(object):
         self.updCnt = 0
         self.closeDsMsgId = None
         self.weEnded = False
+        self.is_close_request_sent = False
         self.register_handlers()
 
     def on_orderbook_update(self, event: Event):
@@ -43,6 +44,7 @@ class QuikConnectorTest(object):
         print("hello sent")
 
     def on_ds_update_handler_installed(self, event: Event):
+        self.updCnt += 1
         print("update handler installed")
 
     def on_bar_arrived(self, event: Event):
@@ -69,9 +71,9 @@ class QuikConnectorTest(object):
                 #self.test_set_callback()
             elif not self.subscription_manager.target_subscriptions:
                 self.subscribe("orderbook", "SPBFUT", "SiH3")
-            elif self.updCnt >= 10:
+            elif self.updCnt >= 3:
                 if not self.is_close_request_sent:
-                    self.test_close_ds()
+                    self.closeDs()
 
 
     def test_say_hello(self):
