@@ -1,13 +1,14 @@
 import socket
-from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_TIMER, EventManager, Event
+from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK_SNAPSHOT, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_TIMER, EventManager, Event
 
 from qpy.quik_bridge import QuikBridge
+from qpy.subscription_manager import SubscriptionManager
 
 class QuikConnectorTest(object):
     def __init__(self, bridge: QuikBridge):
         self.qbridge = bridge
         self.event_manager = self.qbridge.event_manager
-        self.subscriptions = dict()
+        self.subscription_manager = SubscriptionManager(self.qbridge)
         self.msgId = 0
         self.sayHelloMsgId = None
         self.msgWasSent = False
@@ -22,17 +23,8 @@ class QuikConnectorTest(object):
         self.weEnded = False
         self.register_handlers()
 
-    def update_subsciptions(self, event: Event):
-        if len(self.subscriptions) == 0:
-            return
-        for sub_type, subscriptions in self.subscriptions.items():
-            for row in subscriptions:
-                if sub_type == "orderbook":
-                    self.qbridge.getOrderBook(row["class_code"], row["sec_code"])
-
     def on_orderbook_update(self, event: Event):
-        self.ds = event.data['ds']
-        print(f'OrderBookArrived: {event.to_json}')
+        print(f'OrderBookArrived: {event.data["sec_code"]}')
 
     def on_classes_list(self, event: Event):
         self.clsList = event.data['classes'].split(",")
@@ -57,8 +49,7 @@ class QuikConnectorTest(object):
         pass
 
     def register_handlers(self):
-        self.event_manager.register(EVENT_TIMER, self.update_subsciptions)
-        self.event_manager.register(EVENT_ORDERBOOK, self.on_orderbook_update)
+        self.event_manager.register(EVENT_ORDERBOOK_SNAPSHOT, self.on_orderbook_update)
         self.event_manager.register(EVENT_MARKET, self.on_classes_list)
         self.event_manager.register(EVENT_BAR, self.on_bar_arrived)
         self.event_manager.register(EVENT_DATASOURCE_SET, self.on_ds_created)
@@ -74,9 +65,9 @@ class QuikConnectorTest(object):
                 self.test_get_class_list()
             elif self.ds is None and not self.is_ds_request_sent:
                 self.test_create_ds()
-            elif not self.updCBInstalled:
-                self.test_set_callback()
-            elif len(self.subscriptions) == 0:
+            #elif not self.updCBInstalled:
+                #self.test_set_callback()
+            elif not self.subscription_manager.target_subscriptions:
                 self.subscribe("orderbook", "SPBFUT", "SiH3")
             elif self.updCnt >= 10:
                 if not self.is_close_request_sent:
@@ -118,13 +109,7 @@ class QuikConnectorTest(object):
         return True
 
     def subscribe(self, subscription_type, class_code, sec_code):
-        if subscription_type not in self.subscriptions.keys():
-            self.subscriptions[subscription_type] = []
-        if subscription_type == "orderbook":
-            msg_id = self.qbridge.subscribeToOrderBook(class_code, sec_code)
-            self.subscriptions[subscription_type].append(
-                {"class_code": class_code, "sec_code": sec_code, "msg_id": msg_id}
-            )
+        self.subscription_manager.subscribe(subscription_type, class_code, sec_code)
 
 if __name__ == "__main__":
     # Create a TCP/IP socket

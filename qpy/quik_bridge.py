@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from typing import Any, Callable
-from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EventManager, Event, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
+from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SUBSCRIBE, EventManager, Event, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
 from qpy.message_indexer import MessageIndexer
 from qpy.protocol_handler import JsonProtocolHandler, QMessage
 
@@ -125,12 +125,14 @@ class QuikBridge(object):
             elif quik_message.message_type == "classes_list":
                 event_data["classes"] = data["result"][0]
                 event_type = EVENT_MARKET
-            elif quik_message.message_type == "order_book":
-                for entry in data["result"].values():
-                    snapshot = json.load(entry)
-                    if "bid_count" in snapshot.keys() and "offer_count" in snapshot.keys():
+            elif quik_message.message_type == "subscribe_orderbook":
+                event_type = EVENT_ORDERBOOK_SUBSCRIBE
+                event_data['subscription_type'] = 'orderbook'
+            elif quik_message.message_type == "get_orderbook":
+                for entry in data["result"]:
+                    if "bid_count" in entry.keys() and "offer_count" in entry.keys():
                         event_type = EVENT_ORDERBOOK
-                        event_data["order_book"] = snapshot
+                        event_data["order_book"] = entry
             elif quik_message.message_type == "close_datasource":
                 event_type = EVENT_CLOSE
             elif quik_message.message_type == "datasource_callback":

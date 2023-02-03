@@ -21,6 +21,8 @@ EVENT_RESP_ARRIVED = "eResponse"
 EVENT_DATASOURCE_SET = "eDataSource"
 EVENT_MARKET = "eMarket"
 EVENT_ORDERBOOK = "eOrderBook"
+EVENT_ORDERBOOK_SUBSCRIBE = "eOrderBookSubscribe"
+EVENT_ORDERBOOK_SNAPSHOT = "eOrderbookSnapshot"
 EVENT_CLOSE = "eDatasourceClose"
 EVENT_CALLBACK_INSTALLED = "eDatasourceUpdateCallbackInstalled"
 
