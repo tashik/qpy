@@ -77,7 +77,7 @@ class QuikConnectorTest(object):
             elif not self.updCBInstalled:
                 self.test_set_callback()
             elif len(self.subscriptions) == 0:
-                self.subscribe("orderbook", "TQBR", "SBER")
+                self.subscribe("orderbook", "SPBFUT", "SiH3")
             elif self.updCnt >= 10:
                 if not self.is_close_request_sent:
                     self.test_close_ds()
@@ -94,7 +94,7 @@ class QuikConnectorTest(object):
         self.updCnt += 1
 
     def test_create_ds(self):
-        msg_id = self.qbridge.createDs("TQBR", "SBER", 5)
+        msg_id = self.qbridge.createDs("SPBFUT", "SiH3", 5)
         self.is_ds_request_sent = msg_id > 0
         self.updCnt += 1
 

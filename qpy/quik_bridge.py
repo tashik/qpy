@@ -26,6 +26,7 @@ class QuikBridge(object):
         self.indexer = MessageIndexer()
         
         self.message_registry = {}
+        self.data_sources = {}
 
     def register_handlers(self):
         self.event_manager.register(EVENT_REQ_ARRIVED, self.on_req)
@@ -83,7 +84,7 @@ class QuikBridge(object):
 
     def getOrderBook(self, class_code, sec_code):
         return self.send_request(
-            {"method": "invoke", "function": "getQuotesLevel2", "arguments": [class_code, sec_code]}, 
+            {"method": "invoke", "function": "getQuoteLevel2", "arguments": [class_code, sec_code]}, 
             {"message_type": "get_orderbook", "class_code": class_code, "sec_code": sec_code}
             )
 
@@ -96,7 +97,7 @@ class QuikBridge(object):
     def on_req(self, event: Event):
         id = event.data.id
         data = event.data.data
-        if data["method"] == "invoke":
+        if data["method"] == "invoke" and id in self.message_registry:
             quik_message = self.message_registry[str(id)] # type: QuikBridgeMessage
             if quik_message.callback is not None:
                 quik_message.callback(data["arguments"][0])
