@@ -3,7 +3,7 @@ import socket
 import select
 import json
 
-from qpy.event_manager import EventManager, Event, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
+from qpy.event_manager import EventAware, Event, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
 
 @dataclass
 class QMessage(object):
@@ -11,8 +11,9 @@ class QMessage(object):
     data: dict
 
 
-class JsonProtocolHandler:
-    def __init__(self, sock, event_manager: EventManager):
+class JsonProtocolHandler(EventAware):
+    def __init__(self, sock):
+        super().__init__()
         self.sock = sock
         self.peerEnded = False
         self.weEnded = False
@@ -21,7 +22,6 @@ class JsonProtocolHandler:
         self.writable = None
         self.exceptional = None
         self.attempts = 0
-        self.event_manager = event_manager
 
     def sendReq(self, id, data, showInLog=True):
         if self.weEnded:
@@ -61,18 +61,22 @@ class JsonProtocolHandler:
 
     def reqArrived(self, id, data):
         event = Event(EVENT_REQ_ARRIVED, QMessage(id, data))
-        self.event_manager.put(event)
+        
         print("REQ {:d}:".format(id))
         print("REQ CONTENT: " + json.dumps(data))
+
+        self.fire(event)
 
     def ansArrived(self, id, data):
         if len(data) == 0: 
             print('empty resp')
             return
         event = Event(EVENT_RESP_ARRIVED, QMessage(id, data))
-        self.event_manager.put(event)
+        
         print("ANS {:d}:".format(id))
         print("ANS CONTENT: " + json.dumps(data))
+
+        self.fire(event)
 
     def processBuffer(self):
         try:

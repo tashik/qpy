@@ -1,21 +1,23 @@
 import socket
-from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK_SNAPSHOT, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_TIMER, EventManager, Event
+from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK_SNAPSHOT, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_QUOTESTABLE_PARAM_UPDATE, Event
 
 from qpy.quik_bridge import QuikBridge
-from qpy.subscription_manager import SubscriptionManager
+from qpy.subscription_manager import SubscriptionManager, SUBSCRIPTION_ORDERBOOK, SUBSCRIPTION_QUOTESTABLE
 
 class QuikConnectorTest(object):
     def __init__(self, bridge: QuikBridge):
         self.qbridge = bridge
-        self.event_manager = self.qbridge.event_manager
         self.subscription_manager = SubscriptionManager(self.qbridge)
         self.msgId = 0
         self.sayHelloMsgId = None
         self.msgWasSent = False
         self.is_cls_list_request_sent = False
+        self.is_params_request_sent = False
+        self.is_orderbook_request_sent = False
         self.clsList = None
         self.is_ds_request_sent = False
         self.ds = None
+        self.ds_sec_code = None
         self.setUpdCBReqId = None
         self.updCBInstalled = False
         self.updCnt = 0
@@ -30,6 +32,11 @@ class QuikConnectorTest(object):
         if self.updCnt > 5 and not self.is_close_request_sent:
             self.closeDs()
 
+    def on_quotes_table_update(self, event: Event):
+        sec_code = event.data["sec_code"]
+        event_string = event.to_json()
+        print(f"{sec_code}: {event_string}")
+
     def on_classes_list(self, event: Event):
         self.clsList = event.data['classes'].split(",")
         self.clsList = list(filter(None, self.clsList))
@@ -37,6 +44,7 @@ class QuikConnectorTest(object):
 
     def on_ds_created(self, event: Event):
         self.ds = event.data['ds']
+        self.ds_sec_code = event.data["sec_code"]
 
     def on_ds_close(self, event: Event):
         self.ds = None
@@ -53,12 +61,13 @@ class QuikConnectorTest(object):
         pass
 
     def register_handlers(self):
-        self.event_manager.register(EVENT_ORDERBOOK_SNAPSHOT, self.on_orderbook_update)
-        self.event_manager.register(EVENT_MARKET, self.on_classes_list)
-        self.event_manager.register(EVENT_BAR, self.on_bar_arrived)
-        self.event_manager.register(EVENT_DATASOURCE_SET, self.on_ds_created)
-        self.event_manager.register(EVENT_CALLBACK_INSTALLED, self.on_ds_update_handler_installed)
-        self.event_manager.register(EVENT_CLOSE, self.on_ds_close)
+        self.qbridge.register(EVENT_ORDERBOOK_SNAPSHOT, self.on_orderbook_update)
+        self.qbridge.register(EVENT_MARKET, self.on_classes_list)
+        self.qbridge.register(EVENT_BAR, self.on_bar_arrived)
+        self.qbridge.register(EVENT_DATASOURCE_SET, self.on_ds_created)
+        self.qbridge.register(EVENT_CALLBACK_INSTALLED, self.on_ds_update_handler_installed)
+        self.qbridge.register(EVENT_CLOSE, self.on_ds_close)
+        self.qbridge.register(EVENT_QUOTESTABLE_PARAM_UPDATE, self.on_quotes_table_update)
         
     def nextStep(self):
         if not self.msgWasSent:
@@ -69,10 +78,14 @@ class QuikConnectorTest(object):
                 self.test_get_class_list()
             elif self.ds is None and not self.is_ds_request_sent:
                 self.test_create_ds()
-            #elif not self.updCBInstalled:
-                #self.test_set_callback()
-            elif not self.subscription_manager.target_subscriptions:
-                self.subscribe("orderbook", "SPBFUT", "SiH3")
+            elif not self.updCBInstalled:
+                self.test_set_callback()
+            elif not self.is_params_request_sent:
+                self.subscribe(SUBSCRIPTION_QUOTESTABLE, "SPBFUT", "SiH3")
+                self.is_params_request_sent = True
+            elif not self.is_orderbook_request_sent:
+                self.subscribe(SUBSCRIPTION_ORDERBOOK, "SPBFUT", "SiH3")
+                self.is_orderbook_request_sent = True
             elif self.updCnt >= 3:
                 if not self.is_close_request_sent:
                     self.closeDs()
@@ -100,12 +113,9 @@ class QuikConnectorTest(object):
         msg_id = self.qbridge.closeDs(self.ds)
         self.is_close_request_sent = msg_id > 0
 
-    def sberUpdated(self, index):
+    def sberUpdated(self, ds, sec_code, index):
         print("sberUpdated:", index)
-        self.qbridge.getBar(self.ds, index)
-        req = {"method": "invoke", "object": self.ds, "function": "C", "arguments": [index]}
-        self.msgId += 1
-        self.sendReq(self.msgId, req)
+        self.qbridge.getBar(ds, "C", index)
         return True
 
     def subscribe(self, subscription_type, class_code, sec_code):
@@ -124,9 +134,7 @@ if __name__ == "__main__":
     sock.connect(server_address)
     sock.setblocking(0)
 
-    event_man = EventManager()
-    event_man.start()
-    bridge = QuikBridge(sock, event_man)
+    bridge = QuikBridge(sock)
     tester = QuikConnectorTest(bridge)
 
     sock.setblocking(0)
@@ -135,5 +143,4 @@ if __name__ == "__main__":
         if not rrRes:
             tester.nextStep()
     
-    event_man.stop()
     print("finished")
