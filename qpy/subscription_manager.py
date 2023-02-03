@@ -51,19 +51,6 @@ class SubscriptionManager(object):
     def register_handlers(self):
         self.qbridge.register(EVENT_ORDERBOOK, self.on_orderbook_update)
         self.qbridge.register(EVENT_ORDERBOOK_SUBSCRIBE, self.on_orderbook_subscribe)
-
-    def update_subsciptions(self, event: Event):
-        if not self.target_subscriptions:
-            return
-        
-        for sub_key, msg_id in self.target_subscriptions.items():
-            if sub_key in self.pending_subscriptions.keys():
-                continue
-
-            sub_type, class_code, sec_code = sub_key.split("_")
-            if sub_type == SUBSCRIPTION_ORDERBOOK:
-                get_msg_id = self.qbridge.getOrderBook(class_code, sec_code)
-                self.active_subscritions[sub_key] = get_msg_id
                 
     def subscribe(self, subscription_type, class_code, sec_code):
         subscription_key = self.build_key (subscription_type, class_code, sec_code)

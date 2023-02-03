@@ -180,6 +180,14 @@ class QuikBridge(EventAware):
                 event_type = EVENT_BAR
                 event_data["close"] = data["result"][0]
 
-            event = Event(event_type, event_data)
-            self.fire(event)
+
+            if event_type != EVENT_RESP_ARRIVED:
+                event = Event(event_type, event_data)
+                self.fire(event)
+            else:
+                event_string = event.to_json()
+                print(f"UNKNOWN EVENT TYPE: {event_string}")
+        else:
+            event_string = event.to_json()
+            print(f"UNKNOWN RESPOSE: {event_string}")
         

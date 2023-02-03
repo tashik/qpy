@@ -116,6 +116,7 @@ class QuikConnectorTest(object):
     def sberUpdated(self, ds, sec_code, index):
         print("sberUpdated:", index)
         self.qbridge.getBar(ds, "C", index)
+        self.updCnt += 1
         return True
 
     def subscribe(self, subscription_type, class_code, sec_code):
