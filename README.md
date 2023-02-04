@@ -1,3 +1,5 @@
+# Qpy: фреймворк для взаимодействия с мостом QuikQtBridge
+
 Формат данных стакана (event.data события EVENT_ORDERBOOK_SNAPSHOT)
 
 ```
