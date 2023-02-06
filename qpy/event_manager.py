@@ -40,9 +40,12 @@ class Event:
 
     def to_dict(self):
         """"""
+        data = self.data
+        if not isinstance(data, dict):
+            data = self.data.to_dict() if self.data else ""
         as_dict = {
             "type": self.type,
-            "data": self.data.to_dict() if self.data else ""
+            "data": 
         }
         return as_dict
 
