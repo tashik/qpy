@@ -16,6 +16,7 @@ class QuikBridgeMessage(object):
     datasource: Any = None
     callback: Callable = None
 
+
 class QuikBridge(EventAware):
     def __init__(self, sock):
         super().__init__()
@@ -182,11 +183,8 @@ class QuikBridge(EventAware):
 
 
             if event_type != EVENT_RESP_ARRIVED:
-                event = Event(event_type, event_data)
-                self.fire(event)
-            else:
-                event_string = event.to_json()
-                print(f"UNKNOWN EVENT TYPE: {event_string}")
+                system_event = Event(event_type, event_data)
+                self.fire(system_event)
         else:
             event_string = event.to_json()
             print(f"UNKNOWN RESPOSE: {event_string}")
