@@ -85,14 +85,31 @@
 ### unsubscribe(subscription_type: string, class_code: string, sec_code: string)
     запрос отказа от подписки ненужного нам типа на ненужный нам уже инструмент
 
+## Подписка на параметры таблицы текущих торгов
+
+Тип подписки subscription_type - 'quotestable'.
+Событие *EVENT_QUOTESTABLE_PARAM_UPDATE*
+Формат данных события:
+
+```
+{
+   "class_code": string,
+   "sec_code": string,
+   <имя параметра> : <значение параметра: string>
+}
+```
+
 ## Подписка на стаканы
 
 Тип подписки subscription_type - 'orderbook'.
 Событие *EVENT_ORDERBOOK_SNAPSHOT*
-Формат данных ответа:
+Формат данных события:
 
 ```
 {
+   "class_code": string,
+   "sec_code": string,
+   "order_book": {
     "bid": [
         {
             "price": "71251",
@@ -115,6 +132,6 @@
         },
     ], 
     "offer_count": "2.000000"
+  }
 }
 ```
-
