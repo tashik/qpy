@@ -104,7 +104,7 @@ class QuikConnectorTest(object):
         self.is_ds_request_sent = msg_id > 0
 
     def test_set_callback(self):
-        msg_id = self.qbridge.setDsUpdateCallback(self.ds, self.sberUpdated)
+        msg_id = self.qbridge.setDsUpdateCallback(self.ds, self.dsUpdated)
         self.updCBInstalled = msg_id > 0
 
     def closeDs(self):
@@ -113,8 +113,8 @@ class QuikConnectorTest(object):
         msg_id = self.qbridge.closeDs(self.ds)
         self.is_close_request_sent = msg_id > 0
 
-    def sberUpdated(self, ds, sec_code, index):
-        print("sberUpdated:", index)
+    def dsUpdated(self, ds, sec_code, index):
+        print("dsUpdated:", index)
         self.qbridge.getBar(ds, "C", index)
         return True
 
