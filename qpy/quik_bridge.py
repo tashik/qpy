@@ -1,9 +1,10 @@
-import json
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable
-from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SUBSCRIBE, EventManager, Event, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
+from qpy.event_manager import EventAware, Event, EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SUBSCRIBE, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
 from qpy.message_indexer import MessageIndexer
 from qpy.protocol_handler import JsonProtocolHandler, QMessage
+from decimal import Decimal
 
 @dataclass
 class QuikBridgeMessage(object):
@@ -17,20 +18,18 @@ class QuikBridgeMessage(object):
     callback: Callable = None
 
 
-class QuikBridge(object):
-    def __init__(self, sock, event_manager: EventManager):
-        self.event_manager = event_manager
+class QuikBridge(EventAware):
+    def __init__(self, sock):
+        super().__init__()
+        self.phandler = JsonProtocolHandler(sock)
         self.register_handlers()
-
-        self.phandler = JsonProtocolHandler(sock, event_manager)
         self.indexer = MessageIndexer()
-        
         self.message_registry = {}
         self.data_sources = {}
 
     def register_handlers(self):
-        self.event_manager.register(EVENT_REQ_ARRIVED, self.on_req)
-        self.event_manager.register(EVENT_RESP_ARRIVED, self.on_resp)
+        self.phandler.register(EVENT_REQ_ARRIVED, self.on_req)
+        self.phandler.register(EVENT_RESP_ARRIVED, self.on_resp)
 
     def register_message(self, id, method_name, meta_data: dict):
         msg = QuikBridgeMessage(id, meta_data["message_type"], method_name)
@@ -44,9 +43,19 @@ class QuikBridge(object):
 
         if "datasource" in meta_data.keys():
             msg.datasource = meta_data["datasource"]
+            if meta_data["datasource"] not in self.data_sources:
+                self.data_sources[meta_data["datasource"]] = { "sec_code": msg.sec_code}
+            else:
+                if msg.sec_code is None:
+                    msg.sec_code = self.data_sources[meta_data["datasource"]]['sec_code']
 
         if "callback" in meta_data.keys():
             msg.callback = meta_data["callback"]
+            if msg.datasource is not None and msg.datasource in self.data_sources.keys():
+                self.data_sources[msg.datasource]['callback'] = meta_data['callback']
+
+        if "param_name" in meta_data.keys():
+            msg.param_name = meta_data["param_name"]
 
         self.message_registry[str(id)] = msg
     
@@ -71,16 +80,36 @@ class QuikBridge(object):
         return self.send_request({"method": "invoke", "object": datasource, "function": "Close", "arguments": []}, {"message_type": "close_datasource", "datasource": datasource})
 
     def subscribeToOrderBook(self, class_code, sec_code):
+        # return self.send_request(
+        #     {"method": "invoke", "function": "Subscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+        #     {"message_type": "subscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
+        #     )
         return self.send_request(
-            {"method": "invoke", "function": "Subscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+            {"method": "subscribeQuotes", "class": class_code, "security": sec_code},
             {"message_type": "subscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
-            )
+        )
 
     def unsubscribeToOrderBook(self, class_code, sec_code):
+        # return self.send_request(
+        #     {"method": "invoke", "function": "Unsubscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+        #     {"message_type": "unsubscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
+        #     )
         return self.send_request(
-            {"method": "invoke", "function": "Unsubscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+            {"method": "unsubscribeQuotes", "class": class_code, "security": sec_code},
             {"message_type": "unsubscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
-            )
+        )
+
+    def subscribeToQuotesTableParams(self, class_code, sec_code, param_name):
+        return self.send_request(
+            {"method": "subscribeParamChanges","class":class_code,"security":sec_code, "param": param_name},
+            {"message_type": "subscribe_quotes_table", "class_code": class_code, "sec_code": sec_code}
+        )
+
+    def unsubscribeToQuotesTableParams(self, class_code, sec_code, param_name):
+        return self.send_request(
+            {"method": "unsubscribeParamChanges","class":class_code,"security":sec_code, "param": param_name},
+            {"message_type": "subscribe_quotes_table", "class_code": class_code, "sec_code": sec_code}
+        )
 
     def getOrderBook(self, class_code, sec_code):
         return self.send_request(
@@ -90,18 +119,47 @@ class QuikBridge(object):
 
     def send_request(self, data: dict, meta_data: dict):
         msg_id = self.indexer.get_index()
-        self.register_message(msg_id, data["function"], meta_data)
+        if "function" in data.keys():
+            method = data["function"]
+        else:
+            method = data["method"]
+        self.register_message(msg_id, method, meta_data)
         self.phandler.sendReq(msg_id, data)
         return msg_id
 
     def on_req(self, event: Event):
         id = event.data.id
         data = event.data.data
-        if data["method"] == "invoke" and id in self.message_registry:
-            quik_message = self.message_registry[str(id)] # type: QuikBridgeMessage
-            if quik_message.callback is not None:
-                quik_message.callback(data["arguments"][0])
+        if data["method"] == "invoke" and data['object'] in self.data_sources:
+            quik_message = self.data_sources[data["object"]] # type: QuikBridgeMessage
+            if 'callback' in quik_message.keys():
+                quik_message['callback'](data['object'], quik_message['sec_code'], data["arguments"][0])
 
+        if data["method"] == "paramChange":
+            quik_message = None
+            if id in self.message_registry:
+                quik_message = self.message_registry[str(id)] # type: QuikBridgeMessage
+            param_name = data["param"]
+            param_value = data["value"]
+            event_data = {
+                "sec_code": data["security"],
+                "class_code": data["class"],
+                param_name: param_value
+            }
+            event = Event(EVENT_QUOTESTABLE_PARAM_UPDATE, event_data)
+            self.fire(event)
+
+        elif data["method"] == "quotesChange" and "quotes" in data.keys():
+            quotes = data["quotes"]
+            event_data = {
+                "sec_code": data["security"],
+                "class_code": data["class"]
+            }
+            if "bid_count" in quotes.keys() and "offer_count" in quotes.keys() and Decimal(quotes["bid_count"]) > 0 and Decimal(quotes["offer_count"]) > 0:
+                event_data["order_book"] = quotes
+                event = Event(EVENT_ORDERBOOK, event_data)
+                self.fire(event)
+            
         self.phandler.sendAns(id, {"method": "return", "result": True})
 
     def on_resp(self, event: Event):
@@ -143,6 +201,11 @@ class QuikBridge(object):
                 event_type = EVENT_BAR
                 event_data["close"] = data["result"][0]
 
-            event = Event(event_type, event_data)
-            self.event_manager.put(event)
+
+            if event_type != EVENT_RESP_ARRIVED:
+                system_event = Event(event_type, event_data)
+                self.fire(system_event)
+        else:
+            event_string = event.to_json()
+            print(f"UNKNOWN RESPOSE: {event_string}")
         
