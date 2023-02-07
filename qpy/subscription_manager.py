@@ -36,12 +36,12 @@ class SubscriptionManager(object):
         self.param_list = [
             'BID',
             'OFFER',
-            'BODDEPTH',
+            'BIDDEPTH',
             'OFFERDEPTH',
             'LAST'
         ]
 
-        self.active_subscritions = {}
+        self.active_subscriptions = {}
         self.pending_subscriptions = {}
 
         self.target_subscriptions = {}
@@ -63,11 +63,12 @@ class SubscriptionManager(object):
             msg_id = self.qbridge.subscribeToOrderBook(class_code, sec_code)
             self.target_subscriptions[subscription_key] = msg_id
             self.pending_subscriptions[subscription_key] = msg_id
+            self.active_subscriptions[subscription_key] = msg_id
         elif subscription_type == SUBSCRIPTION_QUOTESTABLE:
             for param in self.param_list:
                 msg_id = self.qbridge.subscribeToQuotesTableParams(class_code, sec_code, param)
             self.target_subscriptions[subscription_key] = msg_id
-            self.active_subscritions[subscription_key] = msg_id
+            self.active_subscriptions[subscription_key] = msg_id
 
 
     def unsubscribe(self, subscription_type, class_code, sec_code):
@@ -80,7 +81,7 @@ class SubscriptionManager(object):
 
             del self.target_subscriptions[subscription_key]
             self.pending_subscriptions.pop(subscription_key, None)
-            self.active_subscritions.pop(subscription_key, None)
+            self.active_subscriptions.pop(subscription_key, None)
             
 
     def build_key(self, tp, cc, sc):
@@ -92,9 +93,9 @@ class SubscriptionManager(object):
         sc = event.data["sec_code"]
         sub_key = self.build_key(tp, cc, sc)
         if sub_key not in self.target_subscriptions.keys():
-            if sub_key in self.active_subscritions.keys():
+            if sub_key in self.active_subscriptions.keys():
                 self.unsubscribe(tp, cc, sc)
-                del self.active_subscritions[sub_key]
+                del self.active_subscriptions[sub_key]
             return
 
         snap_event = Event(EVENT_ORDERBOOK_SNAPSHOT, event.data)
@@ -108,6 +109,6 @@ class SubscriptionManager(object):
         if sub_key in self.pending_subscriptions.keys():
             del self.pending_subscriptions[sub_key]
 
-        get_msg_id = self.qbridge.getOrderBook(cc, sc)
-        self.active_subscritions[sub_key] = get_msg_id
+        # get_msg_id = self.qbridge.getOrderBook(cc, sc)
+        # self.active_subscriptions[sub_key] = get_msg_id
 

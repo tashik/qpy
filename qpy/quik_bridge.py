@@ -4,6 +4,7 @@ from typing import Any, Callable
 from qpy.event_manager import EventAware, Event, EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SUBSCRIBE, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
 from qpy.message_indexer import MessageIndexer
 from qpy.protocol_handler import JsonProtocolHandler, QMessage
+from decimal import Decimal
 
 @dataclass
 class QuikBridgeMessage(object):
@@ -79,16 +80,24 @@ class QuikBridge(EventAware):
         return self.send_request({"method": "invoke", "object": datasource, "function": "Close", "arguments": []}, {"message_type": "close_datasource", "datasource": datasource})
 
     def subscribeToOrderBook(self, class_code, sec_code):
+        # return self.send_request(
+        #     {"method": "invoke", "function": "Subscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+        #     {"message_type": "subscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
+        #     )
         return self.send_request(
-            {"method": "invoke", "function": "Subscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+            {"method": "subscribeQuotes", "class": class_code, "security": sec_code},
             {"message_type": "subscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
-            )
+        )
 
     def unsubscribeToOrderBook(self, class_code, sec_code):
+        # return self.send_request(
+        #     {"method": "invoke", "function": "Unsubscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+        #     {"message_type": "unsubscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
+        #     )
         return self.send_request(
-            {"method": "invoke", "function": "Unsubscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
+            {"method": "unsubscribeQuotes", "class": class_code, "security": sec_code},
             {"message_type": "unsubscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
-            )
+        )
 
     def subscribeToQuotesTableParams(self, class_code, sec_code, param_name):
         return self.send_request(
@@ -139,6 +148,17 @@ class QuikBridge(EventAware):
             }
             event = Event(EVENT_QUOTESTABLE_PARAM_UPDATE, event_data)
             self.fire(event)
+
+        elif data["method"] == "quotesChange" and "quotes" in data.keys():
+            quotes = data["quotes"]
+            event_data = {
+                "sec_code": data["security"],
+                "class_code": data["class"]
+            }
+            if "bid_count" in quotes.keys() and "offer_count" in quotes.keys() and Decimal(quotes["bid_count"]) > 0 and Decimal(quotes["offer_count"]) > 0:
+                event_data["order_book"] = quotes
+                event = Event(EVENT_ORDERBOOK, event_data)
+                self.fire(event)
             
         self.phandler.sendAns(id, {"method": "return", "result": True})
 

@@ -45,7 +45,7 @@ class Event:
             data = self.data.to_dict() if self.data else ""
         as_dict = {
             "type": self.type,
-            "data": 
+            "data": data
         }
         return as_dict
 
