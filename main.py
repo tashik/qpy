@@ -81,10 +81,10 @@ class QuikConnectorTest(object):
             elif not self.updCBInstalled:
                 self.test_set_callback()
             elif not self.is_params_request_sent:
-                self.subscribe(SUBSCRIPTION_QUOTESTABLE, "SPBFUT", "SiH3")
+                self.subscribe(SUBSCRIPTION_QUOTESTABLE, "SPBFUT", "SiU3")
                 self.is_params_request_sent = True
             elif not self.is_orderbook_request_sent:
-                self.subscribe(SUBSCRIPTION_ORDERBOOK, "SPBFUT", "SiH3")
+                self.subscribe(SUBSCRIPTION_ORDERBOOK, "SPBFUT", "SiU3")
                 self.is_orderbook_request_sent = True
             elif self.updCnt >= 3:
                 if not self.is_close_request_sent:
@@ -100,7 +100,7 @@ class QuikConnectorTest(object):
         self.is_cls_list_request_sent = msg_id > 0
 
     def test_create_ds(self):
-        msg_id = self.qbridge.createDs("SPBFUT", "SiH3", 5)
+        msg_id = self.qbridge.createDs("SPBFUT", "SiU3", 5)
         self.is_ds_request_sent = msg_id > 0
 
     def test_set_callback(self):
