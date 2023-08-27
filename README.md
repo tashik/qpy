@@ -135,3 +135,77 @@
   }
 }
 ```
+
+## Работа с ордерами
+
+Для работы с ордерами используется один метод для всех действий - sendTransaction. Метод принимает на вход экземпляр класса TransactionEntity, содержащий информацию о транзакции
+Помимо метода отправки транзакций, для работы с ордерами необходимо использовать событие OnOrder. Чтобы его использовать, нужно зарегистировать глобальный коллбэк.
+При срабатывании обратного вызова OnOrder система будет генерировать внутренее событие  *EVENT_ORDER_UPDATE*, на которое нужно подписаться уже в совем коде
+
+### Пример размещения лимитного ордера:
+
+```
+
+from qpy.entities import TransactionEntity
+
+
+sock = ... # подключение к сокету
+acc = "87654abc" # номер счета
+qBridge = QBridge(sock, acc)
+
+
+client_code = "P123" # комментарий к ордеру
+order_type = "L" # тип заявки (L - лимитный, M - рыночный)
+transaction_id = qBridge.indexer.get_index() # уникальный идентификатор заявки на нашей стороне
+class_code = "SPBFUT" # код класса инструмента
+seccode = "SiU9" # код инструмента
+qty = "1" # количество лотов
+direction = "B" # направление сделки (B - покупка, S - продажа)
+price = "90000" # цена лимитного ордера, для рыночного ордера на фонде передаем "0", для рыночного ордера на срочке передаем цену соответствующей границы ценового коридора
+action = "NEW_ORDER"
+
+tran = TransactionEntity(acc, client_code,  order_type, transaction_id, class_code, seccode, action, direction, price, qty)
+qBridge.sendTransaction(tran)
+
+```
+
+### Пример перестановки лимитного ордера:
+
+Переставлять мы можем только тот ордер, по которому приходил обратный вызов, потому что при перестановке требуется передать order_num, который приходит от QUIK.
+
+```
+
+move_order_num = ... # идентификатор перемещаемого ордера на стороне QUIK, который мы получили в обработчике обратного вызова
+new_transaction_id = qBridge.indexer.get_index()
+new_price = "90090"
+new_qty = qty
+move_mode = "0" # режим перемещения ордера
+action = "MOVE_ORDER"
+tran = TransactionEntity(acc, client_code,  order_type, new_transaction_id, class_code, seccode, action, direction, new_price, new_qty, move_order_num, move_mode)
+qBridge.sendTransaction(tran)
+
+```
+
+### Пример отметы ордера:
+
+Отменять мы можем только тот ордер, по которому приходил обратный вызов, потому что при отмене требуется передать order_num, который приходит от QUIK.
+
+```
+
+canceled_order_num = ... # идентификатор отменяемого ордера на стороне QUIK, который мы получили в обработчике обратного вызова
+new_transaction_id = qBridge.indexer.get_index()
+action = "KILL_ORDER"
+tran = TransactionEntity(acc, client_code,  order_type, new_transaction_id, class_code, seccode, action, direction, price, qty, move_order_num)
+qBridge.sendTransaction(tran)
+
+```
+
+### Событие поступления обратного вызова EVENT_ORDER_UPDATE
+
+В поле data в событии обратного вызова будет представлен словарь *order*, по структуре как qpy.entities.OrderEntity (но НЕ ЭКЗЕМПЛЯР класса OrderEntity!!!), часть полей может отсутствовать. При обрабоотке следует обязательно сохранить присвоенный QUIK order_num в соотнесении с нашим trans_id. Состояние заявки оперделяется по полю flags, которое будет числовым. Дата и время размещения / снятия заявки будет представлена в виде словаря, по структуре как qpy.entitites.DateTime (но НЕ ЭКЗЕМПЛЯР класса DateTime!!!)
+
+
+## Событие поступления обратного вызова при состоявшейся сделке EVENT_NEW_TRADE
+
+В поле data в событии обратного вызова будет представлен словарь *trade*, по структуре как qpy.entities.TradeEntity (но НЕ ЭКЗЕМПЛЯР класса TradeEntity!!!), часть полей может отсутствовать. Учитывать сделки поможет присвоенный QUIK trade_num. Дата и время сделки будет представлена в виде словаря, по структуре как qpy.entitites.DateTime (но НЕ ЭКЗЕМПЛЯР класса DateTime!!!)
+
