@@ -1,13 +1,12 @@
 import socket
-from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK_SNAPSHOT, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_QUOTESTABLE_PARAM_UPDATE, Event
+from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK_SNAPSHOT, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_ERROR, Event
 
 from qpy.quik_bridge import QuikBridge
 from qpy.subscription_manager import SubscriptionManager, SUBSCRIPTION_ORDERBOOK, SUBSCRIPTION_QUOTESTABLE
 
 class QuikConnectorTest(object):
-    def __init__(self, bridge: QuikBridge, account: str):
+    def __init__(self, bridge: QuikBridge):
         self.qbridge = bridge
-        self.account = account
         self.subscription_manager = SubscriptionManager(self.qbridge)
         self.msgId = 0
         self.sayHelloMsgId = None
@@ -61,7 +60,11 @@ class QuikConnectorTest(object):
     def on_bar_arrived(self, event: Event):
         pass
 
+    def on_error(self, event: Event):
+        print(f'An error occured for message with id {event.data["id"]}')
+
     def register_handlers(self):
+        self.qbridge.register(EVENT_ERROR, self.on_error)
         self.qbridge.register(EVENT_ORDERBOOK_SNAPSHOT, self.on_orderbook_update)
         self.qbridge.register(EVENT_MARKET, self.on_classes_list)
         self.qbridge.register(EVENT_BAR, self.on_bar_arrived)
@@ -140,9 +143,9 @@ if __name__ == "__main__":
     sock.connect(server_address)
     sock.setblocking(0)
 
-    acc = "7664uiy"
+
     bridge = QuikBridge(sock)
-    tester = QuikConnectorTest(bridge, acc)
+    tester = QuikConnectorTest(bridge)
 
     sock.setblocking(0)
     while not tester.weEnded:

@@ -211,13 +211,14 @@ class QuikBridge(EventAware):
         if event.data.id is not None:
             quik_message = self.message_registry[str(event.data.id)] # type: QuikBridgeMessage
         event_data = {
+            "id": event.data.id,
             "sec_code": quik_message.sec_code,
             "class_code": quik_message.class_code,
             "interval": quik_message.interval
         }
         if (quik_message.transaction is not None):
             event_data["transaction"] = quik_message.transaction.to_dict()
-            
+
         event_type = EVENT_RESP_ARRIVED
         if quik_message:
             if quik_message.message_type == "create_datasource":
