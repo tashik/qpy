@@ -5,7 +5,7 @@ from qpy.quik_bridge import QuikBridge
 
 from qpy.entities import TransactionEntity
 
-class QuikConnectorTest(object):
+class QuikConnectorTestOrders(object):
     def __init__(self, bridge: QuikBridge, account: str):
         self.qbridge = bridge
         self.account = account
@@ -85,9 +85,9 @@ if __name__ == "__main__":
     sock.connect(server_address)
     sock.setblocking(0)
 
-    acc = "7664uiy"
+    acc = "7666uiy"
     bridge = QuikBridge(sock)
-    tester = QuikConnectorTest(bridge, acc)
+    tester = QuikConnectorTestOrders(bridge, acc)
 
     sock.setblocking(0)
     while not tester.weEnded:
