@@ -28,8 +28,9 @@ class QuikConnectorTest(object):
         self.register_handlers()
 
     def on_orderbook_update(self, event: Event):
+        self.updCnt += 1
         print(f'OrderBookArrived: {event.data["sec_code"]}')
-        if self.updCnt > 5 and self.canceled_order_id and not self.is_close_request_sent:
+        if self.updCnt > 5 and not self.is_close_request_sent:
             self.closeDs()
 
     def on_quotes_table_update(self, event: Event):
