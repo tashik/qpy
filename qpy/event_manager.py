@@ -5,12 +5,13 @@ from threading import Thread
 from time import sleep
 from typing import Any, Callable
 
+EVENT_ERROR = "eError"
 EVENT_TIMER = "eTimer"
 EVENT_PING = "ePing"
 EVENT_TICK = "eTick."
 EVENT_BAR = "eBar."
-EVENT_TRADE = "eTrade."
-EVENT_ORDER = "eOrder."
+EVENT_ORDER_UPDATE = "eOnOrderUpdate"
+EVENT_NEW_TRADE = "eOnNewTrade"
 EVENT_ORDER_CANCEL = "eOrderCancel."
 EVENT_POSITION = "ePosition."
 EVENT_ACCOUNT = "eAccount."
@@ -26,6 +27,7 @@ EVENT_ORDERBOOK_SUBSCRIBE = "eOrderBookSubscribe"
 EVENT_ORDERBOOK_SNAPSHOT = "eOrderbookSnapshot"
 EVENT_CLOSE = "eDatasourceClose"
 EVENT_CALLBACK_INSTALLED = "eDatasourceUpdateCallbackInstalled"
+
 
 class Event:
     """

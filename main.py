@@ -5,8 +5,9 @@ from qpy.quik_bridge import QuikBridge
 from qpy.subscription_manager import SubscriptionManager, SUBSCRIPTION_ORDERBOOK, SUBSCRIPTION_QUOTESTABLE
 
 class QuikConnectorTest(object):
-    def __init__(self, bridge: QuikBridge):
+    def __init__(self, bridge: QuikBridge, account: str):
         self.qbridge = bridge
+        self.account = account
         self.subscription_manager = SubscriptionManager(self.qbridge)
         self.msgId = 0
         self.sayHelloMsgId = None
@@ -73,6 +74,7 @@ class QuikConnectorTest(object):
         if not self.msgWasSent:
             self.test_say_hello()
             self.msgWasSent = True
+            self.test_global_callbacks()
         else:
             if self.clsList is None and not self.is_cls_list_request_sent:
                 self.test_get_class_list()
@@ -94,6 +96,10 @@ class QuikConnectorTest(object):
     def test_say_hello(self):
         msg_id = self.qbridge.sayHello()
         self.sayHelloMsgId = msg_id
+
+    def test_global_callbacks(self):
+        self.qbridge.setGlobalCallback("OnOrder")
+        self.qbridge.setGlobalCallback("OnTrade")
 
     def test_get_class_list(self):
         msg_id = self.qbridge.getClassesList()
@@ -134,8 +140,9 @@ if __name__ == "__main__":
     sock.connect(server_address)
     sock.setblocking(0)
 
+    acc = "7664uiy"
     bridge = QuikBridge(sock)
-    tester = QuikConnectorTest(bridge)
+    tester = QuikConnectorTest(bridge, acc)
 
     sock.setblocking(0)
     while not tester.weEnded:

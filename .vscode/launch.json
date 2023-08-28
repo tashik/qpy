@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "qpy-test",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "qpy-orders-test",
+            "type": "python",
+            "request": "launch",
+            "program": "testOrders.py",
+            "justMyCode": true
+        }
+    ]
+}

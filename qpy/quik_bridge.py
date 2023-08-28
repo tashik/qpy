@@ -1,10 +1,11 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable
-from qpy.event_manager import EventAware, Event, EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SUBSCRIBE, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
+from qpy.event_manager import EventAware, Event, EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SUBSCRIBE, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED, EVENT_ORDER_UPDATE, EVENT_NEW_TRADE, EVENT_ERROR
 from qpy.message_indexer import MessageIndexer
 from qpy.protocol_handler import JsonProtocolHandler, QMessage
 from decimal import Decimal
+from qpy.entities import TransactionEntity
 
 @dataclass
 class QuikBridgeMessage(object):
@@ -15,6 +16,7 @@ class QuikBridgeMessage(object):
     class_code: str = ""
     interval: str = ""
     datasource: Any = None
+    transaction: Any = None
     callback: Callable = None
 
 
@@ -56,6 +58,9 @@ class QuikBridge(EventAware):
 
         if "param_name" in meta_data.keys():
             msg.param_name = meta_data["param_name"]
+        
+        if "transaction" in meta_data.keys():
+            msg.transaction = meta_data["transaction"]
 
         self.message_registry[str(id)] = msg
     
@@ -117,6 +122,18 @@ class QuikBridge(EventAware):
             {"message_type": "get_orderbook", "class_code": class_code, "sec_code": sec_code}
             )
 
+    def sendTransaction(self, transaction: TransactionEntity):
+        return self.send_request(
+            {"method": "invoke", "function": "sendTransaction", "arguments": [transaction.to_dict()]},
+            {"message_type": "send_transaction", "transaction": transaction, "class_code": transaction.CLASSCODE, "sec_code": transaction.SECCODE}
+        )
+
+    def setGlobalCallback(self, name):
+        return self.send_request(
+            {"method":"register", "callback": name},
+            {"message_type": "callback_"+name}
+        )
+
     def send_request(self, data: dict, meta_data: dict):
         msg_id = self.indexer.get_index()
         if "function" in data.keys():
@@ -130,7 +147,7 @@ class QuikBridge(EventAware):
     def on_req(self, event: Event):
         id = event.data.id
         data = event.data.data
-        if data["method"] == "invoke" and data['object'] in self.data_sources:
+        if data["method"] == "invoke" and "object" in data and  data['object'] in self.data_sources:
             quik_message = self.data_sources[data["object"]] # type: QuikBridgeMessage
             if 'callback' in quik_message.keys():
                 quik_message['callback'](data['object'], quik_message['sec_code'], data["arguments"][0])
@@ -159,7 +176,30 @@ class QuikBridge(EventAware):
                 event_data["order_book"] = quotes
                 event = Event(EVENT_ORDERBOOK, event_data)
                 self.fire(event)
-            
+        elif data["method"] == "callback" and "OnOrder" == data["name"]:
+            order = data["arguments"][0]
+
+            if order["trans_id"] != "0": # не программные ордера будут приходить с 0
+                event_data = {
+                    "order": order
+                }
+                event = Event(EVENT_ORDER_UPDATE, event_data)
+                self.fire(event)
+        elif data["method"] == "callback" and "OnTransReply" == data["name"]:
+            order = data["arguments"][0]
+            if order["trans_id"] != "0": # не программные ордера будут приходить с 0
+                event_data = {
+                    "order": order
+                }
+                event = Event(EVENT_ORDER_UPDATE, event_data)
+                self.fire(event)
+        elif data['method'] == "callback" and "OnTrade" == data["name"]:
+            trade = data["arguments"][0]
+            event_data = {
+                "trade": trade
+            }
+            event = Event(EVENT_NEW_TRADE, event_data)
+
         self.phandler.sendAns(id, {"method": "return", "result": True})
 
     def on_resp(self, event: Event):
@@ -175,6 +215,9 @@ class QuikBridge(EventAware):
             "class_code": quik_message.class_code,
             "interval": quik_message.interval
         }
+        if (quik_message.transaction is not None):
+            event_data["transaction"] = quik_message.transaction.to_dict()
+            
         event_type = EVENT_RESP_ARRIVED
         if quik_message:
             if quik_message.message_type == "create_datasource":
@@ -200,6 +243,12 @@ class QuikBridge(EventAware):
             elif quik_message.message_type == "bar_C":
                 event_type = EVENT_BAR
                 event_data["close"] = data["result"][0]
+            else:
+                if "result" in data:
+                    res = data["result"]
+                    if res != True and res[0] != "":
+                        event_type = EVENT_ERROR
+                        event_data["result"] = data["result"]
 
 
             if event_type != EVENT_RESP_ARRIVED:
