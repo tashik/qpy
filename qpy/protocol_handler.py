@@ -60,11 +60,9 @@ class JsonProtocolHandler(EventAware):
             self.sock.close()
 
     def reqArrived(self, id, data):
-        event = Event(EVENT_REQ_ARRIVED, QMessage(id, data))
-        
         print("REQ {:d}:".format(id))
         print("REQ CONTENT: " + json.dumps(data))
-
+        event = Event(EVENT_REQ_ARRIVED, QMessage(id, data))
         self.fire(event)
 
     def ansArrived(self, id, data):
@@ -176,6 +174,7 @@ class JsonProtocolHandler(EventAware):
         ndata = b''
         try:
             ndata = self.sock.recv(1024)
+            # print(f"New data length {len(ndata)}")
         except socket.error:
             pass
         if ndata == b'' and self.attempts < 10:

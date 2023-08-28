@@ -169,24 +169,7 @@ qBridge.sendTransaction(tran)
 
 ```
 
-### Пример перестановки лимитного ордера:
-
-Переставлять мы можем только тот ордер, по которому приходил обратный вызов, потому что при перестановке требуется передать order_num, который приходит от QUIK.
-
-```
-
-move_order_num = ... # идентификатор перемещаемого ордера на стороне QUIK, который мы получили в обработчике обратного вызова
-new_transaction_id = qBridge.indexer.get_index()
-new_price = "90090"
-new_qty = qty
-move_mode = "0" # режим перемещения ордера
-action = "MOVE_ORDER"
-tran = TransactionEntity(acc, client_code,  order_type, new_transaction_id, class_code, seccode, action, direction, new_price, new_qty, move_order_num, move_mode)
-qBridge.sendTransaction(tran)
-
-```
-
-### Пример отметы ордера:
+### Пример отмены ордера:
 
 Отменять мы можем только тот ордер, по которому приходил обратный вызов, потому что при отмене требуется передать order_num, который приходит от QUIK.
 
@@ -195,7 +178,7 @@ qBridge.sendTransaction(tran)
 canceled_order_num = ... # идентификатор отменяемого ордера на стороне QUIK, который мы получили в обработчике обратного вызова
 new_transaction_id = qBridge.indexer.get_index()
 action = "KILL_ORDER"
-tran = TransactionEntity(acc, client_code,  order_type, new_transaction_id, class_code, seccode, action, direction, price, qty, move_order_num)
+tran = TransactionEntity(acc, client_code,  order_type, new_transaction_id, class_code, seccode, action, direction, price, qty, cancel_order_num)
 qBridge.sendTransaction(tran)
 
 ```
