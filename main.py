@@ -1,9 +1,8 @@
 import socket
-from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK_SNAPSHOT, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_ORDER_UPDATE, EVENT_ORDER_CANCEL, EVENT_NEW_TRADE, Event
+from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK_SNAPSHOT, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_QUOTESTABLE_PARAM_UPDATE, Event
 
 from qpy.quik_bridge import QuikBridge
 from qpy.subscription_manager import SubscriptionManager, SUBSCRIPTION_ORDERBOOK, SUBSCRIPTION_QUOTESTABLE
-from qpy.entities import TransactionEntity
 
 class QuikConnectorTest(object):
     def __init__(self, bridge: QuikBridge, account: str):
@@ -26,15 +25,11 @@ class QuikConnectorTest(object):
         self.closeDsMsgId = None
         self.weEnded = False
         self.is_close_request_sent = False
-        self.placed_order_id = None
-        self.moved_order_id = None
-        self.canceled_order_id = None
         self.register_handlers()
 
     def on_orderbook_update(self, event: Event):
-        self.updCnt += 1
         print(f'OrderBookArrived: {event.data["sec_code"]}')
-        if self.updCnt > 5 and not self.is_close_request_sent:
+        if self.updCnt > 5 and self.canceled_order_id and not self.is_close_request_sent:
             self.closeDs()
 
     def on_quotes_table_update(self, event: Event):
@@ -65,12 +60,6 @@ class QuikConnectorTest(object):
     def on_bar_arrived(self, event: Event):
         pass
 
-    def on_order_update(self, event: Event):
-        print(f'Updated order {event.data["order"]["trans_id"]} with flag {event.data["order"]["flags"]}')
-
-    def on_new_trade(self, event: Event):
-        print(f'New trade arrived {event.data["trade"]["trade_num"]} for {event.data["trade"]["seccode"]} {event.data["trade"]["qty"]}')
-
     def register_handlers(self):
         self.qbridge.register(EVENT_ORDERBOOK_SNAPSHOT, self.on_orderbook_update)
         self.qbridge.register(EVENT_MARKET, self.on_classes_list)
@@ -79,8 +68,6 @@ class QuikConnectorTest(object):
         self.qbridge.register(EVENT_CALLBACK_INSTALLED, self.on_ds_update_handler_installed)
         self.qbridge.register(EVENT_CLOSE, self.on_ds_close)
         self.qbridge.register(EVENT_QUOTESTABLE_PARAM_UPDATE, self.on_quotes_table_update)
-        self.qbridge.register(EVENT_ORDER_UPDATE, self.on_order_update)
-        self.qbridge.register(EVENT_ORDER_CANCEL, self.on_order_cancel)
         
     def nextStep(self):
         if not self.msgWasSent:
@@ -94,12 +81,6 @@ class QuikConnectorTest(object):
                 self.test_create_ds()
             elif not self.updCBInstalled:
                 self.test_set_callback()
-            elif not self.placed_order_id:
-                self.test_send_order()
-            elif not self.moved_order_id:
-                self.test_move_order()
-            elif not self.canceled_order_id:
-                self.test_cancel_order()
             elif not self.is_params_request_sent:
                 self.subscribe(SUBSCRIPTION_QUOTESTABLE, "SPBFUT", "SiU3")
                 self.is_params_request_sent = True
@@ -144,21 +125,6 @@ class QuikConnectorTest(object):
 
     def subscribe(self, subscription_type, class_code, sec_code):
         self.subscription_manager.subscribe(subscription_type, class_code, sec_code)
-
-    def test_place_order(self):
-        tran = TransactionEntity(self.account, "P-TEST", "L", self.qbridge.indexer.get_index(), "SPBFUT", "SiU3", "NEW_ORDER", "B", "90000", "1")
-        self.placed_order_id = tran.TRANS_ID
-        self.qbridge.sendTransaction(tran)
-
-    def test_move_order(self):
-        tran = TransactionEntity(self.account, "P-TEST", "L", self.qbridge.indexer.get_index(), "SPBFUT", "SiU3", "MOVE_ORDER", "B", "90090", "1", self.placed_order_id, "0")
-        self.moved_order_id = tran.TRANS_ID
-        self.qbridge.sendTransaction(tran)
-
-    def test_cancel_order(self):
-        tran = TransactionEntity(self.account, "P-TEST", "L", self.qbridge.indexer.get_index(), "SPBFUT", "SiU3", "KILL_ORDER", "B", "90090", "1", "0", self.moved_order_id)
-        self.canceled_order_id = self.moved_order_id
-        self.qbridge.sendTransaction(tran)
 
 if __name__ == "__main__":
     # Create a TCP/IP socket

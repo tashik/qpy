@@ -147,7 +147,7 @@ class QuikBridge(EventAware):
     def on_req(self, event: Event):
         id = event.data.id
         data = event.data.data
-        if data["method"] == "invoke" and data['object'] in self.data_sources:
+        if data["method"] == "invoke" and "object" in data and  data['object'] in self.data_sources:
             quik_message = self.data_sources[data["object"]] # type: QuikBridgeMessage
             if 'callback' in quik_message.keys():
                 quik_message['callback'](data['object'], quik_message['sec_code'], data["arguments"][0])

@@ -39,7 +39,7 @@ class TransactionEntity:
             "ACCOUNT": self.ACCOUNT,
             "CLIENT_CODE": self.CLIENT_CODE,
             "TYPE": self.TYPE,
-            "TRANS_ID": self.TRANS_ID,
+            "TRANS_ID": str(self.TRANS_ID),
             "CLASSCODE": self.CLASSCODE,
             "SECCODE": self.SECCODE,
             "ACTION": self.ACTION,
