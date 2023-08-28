@@ -1,7 +1,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable
-from qpy.event_manager import EventAware, Event, EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SUBSCRIBE, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED, EVENT_ORDER_UPDATE, EVENT_NEW_TRADE
+from qpy.event_manager import EventAware, Event, EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SUBSCRIBE, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED, EVENT_ORDER_UPDATE, EVENT_NEW_TRADE, EVENT_ERROR
 from qpy.message_indexer import MessageIndexer
 from qpy.protocol_handler import JsonProtocolHandler, QMessage
 from decimal import Decimal
@@ -124,7 +124,7 @@ class QuikBridge(EventAware):
 
     def sendTransaction(self, transaction: TransactionEntity):
         return self.send_request(
-            {"method": "invoke", "function": "sendTransaction", "arguments": [transaction.to_json()]},
+            {"method": "invoke", "function": "sendTransaction", "arguments": [transaction.to_dict()]},
             {"message_type": "send_transaction", "transaction": transaction, "class_code": transaction.CLASSCODE, "sec_code": transaction.SECCODE}
         )
 
@@ -177,7 +177,7 @@ class QuikBridge(EventAware):
                 event = Event(EVENT_ORDERBOOK, event_data)
                 self.fire(event)
         elif data["method"] == "callback" and "OnOrder" == data["name"]:
-            order = data["order"]
+            order = data["arguments"][0]
 
             if order["trans_id"] != "0": # не программные ордера будут приходить с 0
                 event_data = {
@@ -185,9 +185,16 @@ class QuikBridge(EventAware):
                 }
                 event = Event(EVENT_ORDER_UPDATE, event_data)
                 self.fire(event)
-
+        elif data["method"] == "callback" and "OnTransReply" == data["name"]:
+            order = data["arguments"][0]
+            if order["trans_id"] != "0": # не программные ордера будут приходить с 0
+                event_data = {
+                    "order": order
+                }
+                event = Event(EVENT_ORDER_UPDATE, event_data)
+                self.fire(event)
         elif data['method'] == "callback" and "OnTrade" == data["name"]:
-            trade = data["trade"]
+            trade = data["arguments"][0]
             event_data = {
                 "trade": trade
             }
@@ -208,7 +215,9 @@ class QuikBridge(EventAware):
             "class_code": quik_message.class_code,
             "interval": quik_message.interval
         }
-
+        if (quik_message.transaction is not None):
+            event_data["transaction"] = quik_message.transaction.to_dict()
+            
         event_type = EVENT_RESP_ARRIVED
         if quik_message:
             if quik_message.message_type == "create_datasource":
@@ -234,6 +243,12 @@ class QuikBridge(EventAware):
             elif quik_message.message_type == "bar_C":
                 event_type = EVENT_BAR
                 event_data["close"] = data["result"][0]
+            else:
+                if "result" in data:
+                    res = data["result"]
+                    if res != True and res[0] != "":
+                        event_type = EVENT_ERROR
+                        event_data["result"] = data["result"]
 
 
             if event_type != EVENT_RESP_ARRIVED:

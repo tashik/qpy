@@ -1,5 +1,5 @@
 import socket
-from qpy.event_manager import EVENT_ORDER_UPDATE, EVENT_NEW_TRADE, Event
+from qpy.event_manager import EVENT_ORDER_UPDATE, EVENT_NEW_TRADE, EVENT_ERROR, Event
 
 from qpy.quik_bridge import QuikBridge
 
@@ -11,14 +11,12 @@ class QuikConnectorTest(object):
         self.account = account
         self.msgId = 0
         self.msgWasSent = False
-        self.closeDsMsgId = None
         self.weEnded = False
-        self.is_close_request_sent = False
+        
         self.placed_order_id = None
         self.placed_order_num = None
-        self.moved_order_id = None
-        self.moved_order_num = None
         self.canceled_order_id = None
+
         self.register_handlers()
 
     def on_ping(self, event: Event):
@@ -27,15 +25,16 @@ class QuikConnectorTest(object):
     def on_order_update(self, event: Event):
         if self.placed_order_num is None:
             self.placed_order_num = event.data["order"]["order_num"]
-        else:
-            if self.moved_order_id is not None and self.moved_order_num is None and event.data["order"]["trans_id"] == self.moved_order_id:
-                self.moved_order_num = event.data["order"]["order_num"]
         print(f'Updated order {event.data["order"]["trans_id"]} with flag {event.data["order"]["flags"]}')
 
     def on_new_trade(self, event: Event):
         print(f'New trade arrived {event.data["trade"]["trade_num"]} for {event.data["trade"]["seccode"]} {event.data["trade"]["qty"]}')
 
+    def on_error(self, event: Event):
+        print(f'An error occured for message with trans id {event.data["transaction"]["TRANS_ID"]}')
+
     def register_handlers(self):
+        self.qbridge.register(EVENT_ERROR, self.on_error)
         self.qbridge.register(EVENT_ORDER_UPDATE, self.on_order_update)
         self.qbridge.register(EVENT_NEW_TRADE, self.on_new_trade)
         
@@ -47,13 +46,10 @@ class QuikConnectorTest(object):
         else:
             if not self.placed_order_id:
                 self.test_place_order()
-            elif self.placed_order_num and not self.moved_order_id:
-                self.test_move_order()
-            elif self.moved_order_num and not self.canceled_order_id:
+            elif self.placed_order_num and not self.canceled_order_id:
                 self.test_cancel_order()
             elif self.canceled_order_id:
-                if not self.is_close_request_sent:
-                    self.closeDs()
+                self.weEnded = True
 
 
     def test_say_hello(self):
@@ -71,14 +67,9 @@ class QuikConnectorTest(object):
         self.placed_order_id = tran.TRANS_ID
         self.qbridge.sendTransaction(tran)
 
-    def test_move_order(self):
-        tran = TransactionEntity(self.account, "P-TEST", "L", self.qbridge.indexer.get_index(), "SPBFUT", "SiU3", "MOVE_ORDER", "B", "90090", "1", self.placed_order_id, "0")
-        self.moved_order_id = tran.TRANS_ID
-        self.qbridge.sendTransaction(tran)
-
     def test_cancel_order(self):
-        tran = TransactionEntity(self.account, "P-TEST", "L", self.qbridge.indexer.get_index(), "SPBFUT", "SiU3", "KILL_ORDER", "B", "90090", "1", "0", self.moved_order_id)
-        self.canceled_order_id = self.moved_order_id
+        tran = TransactionEntity(self.account, "P-TEST", "L", self.qbridge.indexer.get_index(), "SPBFUT", "SiU3", "KILL_ORDER", "B", "90090", "1", self.placed_order_num)
+        self.canceled_order_id = self.placed_order_id
         self.qbridge.sendTransaction(tran)
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: qpy-trst",
+            "name": "qpy-test",
             "type": "python",
             "request": "launch",
             "program": "main.py",
@@ -10,10 +10,10 @@
             "justMyCode": true
         },
         {
-            "name": "Python: File",
+            "name": "qpy-orders-test",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "testOrders.py",
             "justMyCode": true
         }
     ]

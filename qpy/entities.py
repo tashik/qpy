@@ -18,7 +18,7 @@ class TransactionEntity:
     QUANTITY="15"
     """
 
-    def __init__(self, account, client_code, type, trans_id, classcode, seccode, action, operation, price, quantity, order_key = None, move_mode = None):
+    def __init__(self, account, client_code, type, trans_id, classcode, seccode, action, operation, price, quantity, order_key = None):
         """"""
         self.ACCOUNT = account
         self.CLIENT_CODE = client_code
@@ -31,7 +31,6 @@ class TransactionEntity:
         self.PRICE = price
         self.QUATITY = quantity
         self.ORDER_KEY = order_key
-        self.MODE = move_mode
 
     def to_dict(self):
         """"""
@@ -43,15 +42,17 @@ class TransactionEntity:
             "CLASSCODE": self.CLASSCODE,
             "SECCODE": self.SECCODE,
             "ACTION": self.ACTION,
-            "OPERATION": self.OPERATION,
-            "PRICE": self.PRICE,
-            "QUANTITY": self.QUATITY
+            "OPERATION": self.OPERATION
         }
-        if self.ORDER_KEY is not None:
-            as_dict["ORDER_KEY"] = self.ORDER_KEY
 
-        if self.MODE is not None and self.ACTION == "MOVE_ORDER":
-            as_dict["MODE"] = self.MODE
+        if self.ACTION == "NEW_ORDER":
+            as_dict["PRICE"] = self.PRICE
+            as_dict['QUANTITY'] = self.QUATITY
+
+        if self.ORDER_KEY is not None:
+            if self.ACTION == "KILL_ORDER":
+                as_dict["ORDER_KEY"] = self.ORDER_KEY
+        
         return as_dict
 
     def to_json(self):

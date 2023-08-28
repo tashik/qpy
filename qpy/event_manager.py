@@ -5,6 +5,7 @@ from threading import Thread
 from time import sleep
 from typing import Any, Callable
 
+EVENT_ERROR = "eError"
 EVENT_TIMER = "eTimer"
 EVENT_PING = "ePing"
 EVENT_TICK = "eTick."
