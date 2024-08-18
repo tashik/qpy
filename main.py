@@ -2,6 +2,7 @@ import socket
 from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK_SNAPSHOT, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_ERROR, Event
 
 from qpy.quik_bridge import QuikBridge
+from qpy.profiler import Profiler
 from qpy.subscription_manager import SubscriptionManager, SUBSCRIPTION_ORDERBOOK, SUBSCRIPTION_QUOTESTABLE
 
 class QuikConnectorTest(object):
@@ -86,10 +87,10 @@ class QuikConnectorTest(object):
             elif not self.updCBInstalled:
                 self.test_set_callback()
             elif not self.is_params_request_sent:
-                self.subscribe(SUBSCRIPTION_QUOTESTABLE, "SPBFUT", "SiU3")
+                self.subscribe(SUBSCRIPTION_QUOTESTABLE, "SPBFUT", "SiU4")
                 self.is_params_request_sent = True
             elif not self.is_orderbook_request_sent:
-                self.subscribe(SUBSCRIPTION_ORDERBOOK, "SPBFUT", "SiU3")
+                self.subscribe(SUBSCRIPTION_ORDERBOOK, "OPTCURNCY", "Si94CD4")
                 self.is_orderbook_request_sent = True
             elif self.updCnt >= 3:
                 if not self.is_close_request_sent:
@@ -109,7 +110,7 @@ class QuikConnectorTest(object):
         self.is_cls_list_request_sent = msg_id > 0
 
     def test_create_ds(self):
-        msg_id = self.qbridge.createDs("SPBFUT", "SiU3", 5)
+        msg_id = self.qbridge.createDs("SPBFUT", "SiU4", 5)
         self.is_ds_request_sent = msg_id > 0
 
     def test_set_callback(self):
@@ -143,8 +144,9 @@ if __name__ == "__main__":
     sock.connect(server_address)
     sock.setblocking(0)
 
-
-    bridge = QuikBridge(sock)
+    profiler = Profiler()
+    profiler.start()
+    bridge = QuikBridge(sock, profiler)
     tester = QuikConnectorTest(bridge)
 
     sock.setblocking(0)
