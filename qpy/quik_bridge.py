@@ -6,6 +6,7 @@ from qpy.message_indexer import MessageIndexer
 from qpy.protocol_handler import JsonProtocolHandler, QMessage
 from decimal import Decimal
 from qpy.entities import TransactionEntity
+from qpy.profiler import Profiler
 
 @dataclass
 class QuikBridgeMessage(object):
@@ -19,11 +20,11 @@ class QuikBridgeMessage(object):
     transaction: Any = None
     callback: Callable = None
 
-
 class QuikBridge(EventAware):
-    def __init__(self, sock):
+    def __init__(self, sock, profiler: Profiler = None):
         super().__init__()
-        self.phandler = JsonProtocolHandler(sock)
+        self.profiler = profiler
+        self.phandler = JsonProtocolHandler(sock, profiler)
         self.register_handlers()
         self.indexer = MessageIndexer()
         self.message_registry = {}
@@ -210,17 +211,17 @@ class QuikBridge(EventAware):
         
         if event.data.id is not None:
             quik_message = self.message_registry[str(event.data.id)] # type: QuikBridgeMessage
-        event_data = {
-            "id": event.data.id,
-            "sec_code": quik_message.sec_code,
-            "class_code": quik_message.class_code,
-            "interval": quik_message.interval
-        }
-        if (quik_message.transaction is not None):
-            event_data["transaction"] = quik_message.transaction.to_dict()
 
         event_type = EVENT_RESP_ARRIVED
         if quik_message:
+            event_data = {
+                "id": event.data.id,
+                "sec_code": quik_message.sec_code,
+                "class_code": quik_message.class_code,
+                "interval": quik_message.interval
+            }
+            if (quik_message.transaction is not None):
+                event_data["transaction"] = quik_message.transaction.to_dict()
             if quik_message.message_type == "create_datasource":
                 event_data["ds"] = data['result'][0]
                 event_type = EVENT_DATASOURCE_SET
@@ -250,11 +251,12 @@ class QuikBridge(EventAware):
                     if res != True and res[0] != "":
                         event_type = EVENT_ERROR
                         event_data["result"] = data["result"]
-
+            self.profiler.profile("on_resp after event type determination")
 
             if event_type != EVENT_RESP_ARRIVED:
                 system_event = Event(event_type, event_data)
                 self.fire(system_event)
+                self.profiler.profile("on_resp after event fire " + system_event.type)
         else:
             event_string = event.to_json()
             print(f"UNKNOWN RESPOSE: {event_string}")

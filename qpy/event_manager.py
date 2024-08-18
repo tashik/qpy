@@ -63,6 +63,7 @@ HandlerType = Callable[[Event], None]
 class EventAware(object):
     def __init__(self):
         self.handlers = defaultdict(list)
+        self.profiler = None
 
     def register(self, event_type: str, handler: HandlerType):
         """
@@ -80,5 +81,14 @@ class EventAware(object):
             handler_list.append(handler)
 
     def fire(self, event: Event):
+        if self.profiler is not None:
+            self.profiler.profile(event.type + ' fire start')
         if event.type in self.handlers:
-                [handler(event) for handler in self.handlers[event.type]]
+            for handler in self.handlers[event.type]:
+                if self.profiler is not None:
+                    self.profiler.profile(event.type + ' before')
+                handler(event)
+                if self.profiler is not None:
+                    self.profiler.profile(event.type + ' after')
+        if self.profiler is not None:
+            self.profiler.profile(event.type + ' fire finish')

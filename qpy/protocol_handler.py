@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 import socket
 import select
-import json
-
+import json, time
+from qpy.profiler import Profiler
 from qpy.event_manager import EventAware, Event, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
 
 @dataclass
@@ -10,11 +10,14 @@ class QMessage(object):
     id: int
     data: dict
 
-
 class JsonProtocolHandler(EventAware):
-    def __init__(self, sock):
+    def __init__(self, sock, profiler: Profiler = None):
         super().__init__()
         self.sock = sock
+        if profiler is not None:
+            self.profiler = profiler
+        else:
+            self.profiler = None
         self.peerEnded = False
         self.weEnded = False
         self.incommingBuf = b''
@@ -26,11 +29,16 @@ class JsonProtocolHandler(EventAware):
     def sendReq(self, id, data, showInLog=True):
         if self.weEnded:
             return
+        if showInLog:
+            self.profiler.profile("sendReq prepare")
         jobj = {"id": id, "type": "req", "data": data}
         stosend = json.dumps(jobj, separators=(',', ':'))
         if showInLog:
             print(f"SEND: {stosend}")
+            self.profiler.profile("sendReq start")
         self.sock.send(stosend.encode("utf-8"))
+        if showInLog:
+            self.profiler.profile("sendReq finish")
 
     def sendAns(self, id, data, showInLog=True):
         if self.weEnded:
@@ -63,7 +71,10 @@ class JsonProtocolHandler(EventAware):
         print("REQ {:d}:".format(id))
         print("REQ CONTENT: " + json.dumps(data))
         event = Event(EVENT_REQ_ARRIVED, QMessage(id, data))
+        self.profiler.profile("reqArrived before event")
         self.fire(event)
+        self.profiler.profile("reqArrived")
+
 
     def ansArrived(self, id, data):
         if len(data) == 0: 
@@ -73,8 +84,9 @@ class JsonProtocolHandler(EventAware):
         
         print("ANS {:d}:".format(id))
         print("ANS CONTENT: " + json.dumps(data))
-
+        self.profiler.profile("ansArrived before event")
         self.fire(event)
+        self.profiler.profile("ansArrived")
 
     def processBuffer(self):
         try:
