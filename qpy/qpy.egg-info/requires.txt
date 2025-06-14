@@ -1,0 +1,4 @@
+
+[test]
+pytest>=7.0
+pytest-mock

@@ -1,0 +1,237 @@
+Metadata-Version: 2.4
+Name: qpy-bridge
+Version: 0.1.0
+Summary: A Python client for QLUA socket bridge
+Author: Natalya Andriets, aka tashik
+Author-email: "Natalya Andriets, aka tashik" <patrinat@gmail.com>
+License: MIT License
+        
+        Copyright (c) 2025 Natalya Andriets, aka tashik
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Provides-Extra: test
+Requires-Dist: pytest>=7.0; extra == "test"
+Requires-Dist: pytest-mock; extra == "test"
+Dynamic: author
+Dynamic: license-file
+Dynamic: requires-python
+
+# Qpy: фреймворк для взаимодействия с мостом QuikQtBridge
+
+Код фреймворка находится в папке qpy, реализация взаимодействия с фреймворком показана в файле main.py. Файл test.py - это пример реализации взаимодействия с мостом [QuikQtBridge](https://github.com/tashik/QuikQtBridge), предоставленный разработчиком моста.
+
+Все взаимодействие с Quik является асинхронным. Это значит, что на запрос мы не получим ответ сразу. Поэтому для того, чтобы внешняя относительно фреймворка система могла получать и обрабатывать данные, ей нужно зарегистрировать в классе EventManager обработчики событий. Пример регистрации смотреть в классе-тесте в main.py Список событий и форматы ответов приведу ниже, вместе с описанием методов запроса
+
+Во все обработчики событий будет приходить один параметр event типа Event (см event_manager.py), который содержит два поля event_type: string и data: dict. Ниже описанный формат данных ответа - это то, что придет в обработчик в свойстве объекта event  в поле data.
+
+На данный момент реализованы следующие методы в основном классе QuikBridge (по мере появления новых документация будет дополняться):
+
+### sayHello():
+        просто пинг, проверка связи
+        событие *EVENT_PING*
+        формат данных ответа - пусто
+
+### getClassesList():
+        запрос списка классов
+        событие *EVENT_MARKET*
+        формат данных ответа
+            в поле event.data["classes"] строка со списком классов через запятую
+            ```
+            "TQPI,FQBR,FQDE,TQFD,CETS,INDXC,CETS_MTL,CETS_SU,SPBXM,SPBBND,SPBHKEX,SPBRU,SPBRUBND,SPBRU_USD,RTSIDX,USDRUB,CROSSRATE,EQRP_INFO,SMAL,INDX,TQBR,TQOB,TQIF,TQTF,TQBD,TQTD,TQOD,TQTE,TQCB,TQOE,TQIR,TQIU,SPBFUT,SPBOPT,FUTSPREAD,TQOY,OPTSPOT,SPBDE,FUTCLT,
+            ```
+
+### getClassSecurities(class_code: string):
+        запрос списка классов
+        событие *EVENT_SECURITY_LIST*
+        формат данных ответа
+            в поле event.data["securities"] строка со списком инструментов через запятую
+            ```
+            "GAZP,VTBR"
+            ```
+
+### getSecurityContract(class_code: string, sec_code: string):
+        запрос списка классов
+        событие *EVENT_SECURITY_CONTRACT*
+        формат данных ответа
+            в поле event.data["contract"] объект, содержащий данные о контракте
+            ```
+            {
+                "accruedint": 150,
+                "base_active_classcode": "TQBR",
+                "base_active_seccode": "GAZP",
+                "bsid": "B12345",
+                "buybackdate": 20251231,
+                "buybackprice": 101.5,
+                "cfi_code": "ESVUFR",
+                "class_code": "TQBR",
+                "class_name": "Акции",
+                "code": "GAZP",
+                "couponperiod": "6M",
+                "couponvalue": 5.25,
+                "cusip_code": "123456789",
+                "exp_date": 20301231,
+                "face_unit": "RUB",
+                "face_value": 1000.0,
+                "first_curr_qty_scale": 2,
+                "first_currcode": "RUB",
+                "isin_code": "RU0007661625",
+                "list_level": 1,
+                "lot_size": 10,
+                "mat_date": 20301231,
+                "min_price_step": 0.01,
+                "name": "Газпром ао",
+                "nextcoupon": 5.5,
+                "option_strike": 120.0,
+                "qty_multiplier": 1,
+                "qty_scale": 0,
+                "regnumber": "1-02-00028-A",
+                "ric_cod": "GAZP.MM",
+                "scale": 2,
+                "sec_code": "GAZP",
+                "second_curr_qty_scale": 0,
+                "second_currcode": "",
+                "sedol_code": "B0C4QJ9",
+                "settle_date": 20250630,
+                "settlecode": "T+2",
+                "short_name": "GAZP",
+                "step_price_currency": "RUB",
+                "stock_code": "GAZP",
+                "stock_name": "Газпром",
+                "trade_currency": "RUB",
+                "yieldatprevwaprice": 7.2
+            }
+            ```
+
+### createDs(class_code: string, sec_code: string, interval: int):
+        запрос на создание источника данных о свечах
+        событие *EVENT_DATASOURCE_SET*
+        формат данных ответа
+        ```
+        {
+            "sec_code": string,
+            "class_code": string,
+            "interval": int,
+            "ds": int - идентификатор источника данных, полученный от Quik
+        }
+        ```
+
+### setDsUpdateCallback(datasource: int, callback: Callable = None):
+        запрос на регистрацию обработчика данных из созданного источника данных (подписка на свечи)
+        событие *EVENT_CALLBACK_INSTALLED*
+        формат данных ответа
+        ```
+        {
+            "sec_code": string,
+            "class_code": None,
+            "interval": None,
+            "ds": int - идентификатор источника данных, куда проставился обработчик
+        }
+        ```
+
+### getBar(datasource: int, bar_func: string, bar_index: int):
+        запрос на получение данных свечи: тип данных определяется параметром bar_func, куда можно передать название любого поля, которое есть у свечи (см [документацию QLUA](https://luaq.ru/OHLCVT.html)), например, чтобы получить закрытие свечи, bar_func = 'C'
+        событие *EVENT_BAR*
+        формат данных ответа
+        ```
+        {
+            "sec_code": string,
+            "class_code": string,
+            "interval": int,
+            "field": string, - то что было передано в bar_func
+            "value": mixed - значение поля свечи
+        }
+        ```
+
+### closeDs(datasource: int):
+        запрос на закрытие источника данных о свечаз
+        событие *EVENT_CLOSE*
+        формат данных ответа
+        ```
+        {
+            "sec_code": string,
+            "class_code": None,
+            "interval": None,
+            "ds": int - идентификатор источника данных, который был закрыт
+        }
+        ```
+
+Часть данных может быть получена во внешнюю относительно фреймворка систему через функционал подписки. К этим типам данных относятся подписка на данные таблицы текущих торгов (пока там косяк у моста) и подписка на стаканы, которая сейчас реализована при помощи долбёжки по таймеру, но это будет исправлено, когда в мосте исправится косяк.
+
+Все подписки осуществляются с помощью класса SubscriptionManager с простым интерфейсом в виде двух методов subscribe и unsubscribe.
+
+### subscribe(subscription_type: string, class_code: string, sec_code: string)
+    запрос подписки нужного нам типа на нужный нам инструмент
+
+### unsubscribe(subscription_type: string, class_code: string, sec_code: string)
+    запрос отказа от подписки ненужного нам типа на ненужный нам уже инструмент
+
+## Подписка на параметры таблицы текущих торгов
+
+Тип подписки subscription_type - 'quotestable'.
+Событие *EVENT_QUOTESTABLE_PARAM_UPDATE*
+Формат данных события:
+
+```
+{
+   "class_code": string,
+   "sec_code": string,
+   <имя параметра> : <значение параметра: string>
+}
+```
+
+## Подписка на стаканы
+
+Тип подписки subscription_type - 'orderbook'.
+Событие *EVENT_ORDERBOOK_SNAPSHOT*
+Формат данных события:
+
+```
+{
+   "class_code": string,
+   "sec_code": string,
+   "order_book": {
+    "bid": [
+        {
+            "price": "71251",
+            "quantity": "4"
+        },
+        {
+            "price": "71252",
+            "quantity": "10"
+        },
+    ],
+    "bid_count": "2.000000",
+    "offer": [
+        {
+            "price": "71257",
+            "quantity": "5"
+        },
+        {
+            "price": "71258",
+            "quantity": "1"
+        },
+    ],
+    "offer_count": "2.000000"
+  }
+}
+```

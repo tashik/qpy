@@ -22,6 +22,68 @@
             "TQPI,FQBR,FQDE,TQFD,CETS,INDXC,CETS_MTL,CETS_SU,SPBXM,SPBBND,SPBHKEX,SPBRU,SPBRUBND,SPBRU_USD,RTSIDX,USDRUB,CROSSRATE,EQRP_INFO,SMAL,INDX,TQBR,TQOB,TQIF,TQTF,TQBD,TQTD,TQOD,TQTE,TQCB,TQOE,TQIR,TQIU,SPBFUT,SPBOPT,FUTSPREAD,TQOY,OPTSPOT,SPBDE,FUTCLT,
             ```
 
+### getClassSecurities(class_code: string):
+        запрос списка классов
+        событие *EVENT_SECURITY_LIST*
+        формат данных ответа
+            в поле event.data["securities"] строка со списком инструментов через запятую
+            ```
+            "GAZP,VTBR"
+            ```
+
+### getSecurityContract(class_code: string, sec_code: string):
+        запрос списка классов
+        событие *EVENT_SECURITY_CONTRACT*
+        формат данных ответа
+            в поле event.data["contract"] объект, содержащий данные о контракте
+            ```
+            {
+                "accruedint": 150,
+                "base_active_classcode": "TQBR",
+                "base_active_seccode": "GAZP",
+                "bsid": "B12345",
+                "buybackdate": 20251231,
+                "buybackprice": 101.5,
+                "cfi_code": "ESVUFR",
+                "class_code": "TQBR",
+                "class_name": "Акции",
+                "code": "GAZP",
+                "couponperiod": "6M",
+                "couponvalue": 5.25,
+                "cusip_code": "123456789",
+                "exp_date": 20301231,
+                "face_unit": "RUB",
+                "face_value": 1000.0,
+                "first_curr_qty_scale": 2,
+                "first_currcode": "RUB",
+                "isin_code": "RU0007661625",
+                "list_level": 1,
+                "lot_size": 10,
+                "mat_date": 20301231,
+                "min_price_step": 0.01,
+                "name": "Газпром ао",
+                "nextcoupon": 5.5,
+                "option_strike": 120.0,
+                "qty_multiplier": 1,
+                "qty_scale": 0,
+                "regnumber": "1-02-00028-A",
+                "ric_cod": "GAZP.MM",
+                "scale": 2,
+                "sec_code": "GAZP",
+                "second_curr_qty_scale": 0,
+                "second_currcode": "",
+                "sedol_code": "B0C4QJ9",
+                "settle_date": 20250630,
+                "settlecode": "T+2",
+                "short_name": "GAZP",
+                "step_price_currency": "RUB",
+                "stock_code": "GAZP",
+                "stock_name": "Газпром",
+                "trade_currency": "RUB",
+                "yieldatprevwaprice": 7.2
+            }
+            ```
+
 ### createDs(class_code: string, sec_code: string, interval: int):
         запрос на создание источника данных о свечах
         событие *EVENT_DATASOURCE_SET*
@@ -77,7 +139,7 @@
 
 Часть данных может быть получена во внешнюю относительно фреймворка систему через функционал подписки. К этим типам данных относятся подписка на данные таблицы текущих торгов (пока там косяк у моста) и подписка на стаканы, которая сейчас реализована при помощи долбёжки по таймеру, но это будет исправлено, когда в мосте исправится косяк.
 
-Все подписки осуществляются с помощью класса SubscriptionManager с простым интерфейсом в виде двух методов subscribe и unsubscribe. 
+Все подписки осуществляются с помощью класса SubscriptionManager с простым интерфейсом в виде двух методов subscribe и unsubscribe.
 
 ### subscribe(subscription_type: string, class_code: string, sec_code: string)
     запрос подписки нужного нам типа на нужный нам инструмент
@@ -130,7 +192,7 @@
             "price": "71258",
             "quantity": "1"
         },
-    ], 
+    ],
     "offer_count": "2.000000"
   }
 }
