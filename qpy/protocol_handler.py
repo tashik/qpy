@@ -12,9 +12,10 @@ class QMessage(object):
 
 
 class JsonProtocolHandler(EventAware):
-    def __init__(self, sock):
+    def __init__(self, sock, logger=None):
         super().__init__()
         self.sock = sock
+        self.logger = logger or print  # Default to print if no logger provided
         self.peerEnded = False
         self.weEnded = False
         self.incommingBuf = b''
@@ -29,7 +30,7 @@ class JsonProtocolHandler(EventAware):
         jobj = {"id": id, "type": "req", "data": data}
         stosend = json.dumps(jobj, separators=(',', ':'))
         if showInLog:
-            print(f"SEND: {stosend}")
+            self.logger(f"SEND: {stosend}")
         self.sock.send(stosend.encode("utf-8"))
 
     def sendAns(self, id, data, showInLog=True):
@@ -38,7 +39,7 @@ class JsonProtocolHandler(EventAware):
         jobj = {"id": id, "type": "ans", "data": data}
         stosend = json.dumps(jobj, separators=(',', ':'))
         if showInLog:
-            print(f"REPLY: {stosend}")
+            self.logger(f"REPLY: {stosend}")
         self.sock.send(stosend.encode("utf-8"))
 
     def sendVer(self, ver):
@@ -61,20 +62,20 @@ class JsonProtocolHandler(EventAware):
 
     def reqArrived(self, id, data):
         event = Event(EVENT_REQ_ARRIVED, QMessage(id, data))
-        
-        print("REQ {:d}:".format(id))
-        print("REQ CONTENT: " + json.dumps(data))
+
+        self.logger("REQ {:d}:".format(id))
+        self.logger("REQ CONTENT: " + json.dumps(data))
 
         self.fire(event)
 
     def ansArrived(self, id, data):
-        if len(data) == 0: 
-            print('empty resp')
+        if len(data) == 0:
+            self.logger('empty resp')
             return
         event = Event(EVENT_RESP_ARRIVED, QMessage(id, data))
-        
-        print("ANS {:d}:".format(id))
-        print("ANS CONTENT: " + json.dumps(data))
+
+        self.logger("ANS {:d}:".format(id))
+        self.logger("ANS CONTENT: " + json.dumps(data))
 
         self.fire(event)
 
@@ -125,19 +126,19 @@ class JsonProtocolHandler(EventAware):
                         try:
                             jdoc = json.loads(sdoc)
                         except ValueError as err:
-                            print("malformed json...")
+                            self.logger("malformed json...")
                             jdoc = None
                         if jdoc is not None and len(jdoc) > 0:
                             if "id" in jdoc and "type" in jdoc:
                                 if jdoc["type"] == "end":
-                                    print("END received")
+                                    self.logger("END received")
                                     self.peerEnded = True
                                     if self.weEnded:
                                         self.sock.shutdown(2)
                                         self.sock.close()
                                     return True
                                 if jdoc["type"] == "ver":
-                                    print("VER received")
+                                    self.logger("VER received")
                                     self.sendVer(1)
                                     return True
                                 if jdoc["type"] == "ans" or jdoc["type"] == "req":

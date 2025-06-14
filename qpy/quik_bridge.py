@@ -1,7 +1,11 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable
-from qpy.event_manager import EventAware, Event, EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_QUOTESTABLE_PARAM_UPDATE, EVENT_PING,EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SUBSCRIBE, EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
+from qpy.event_manager import EventAware, Event
+from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_QUOTESTABLE_PARAM_UPDATE
+from qpy.event_manager import EVENT_PING, EVENT_CLOSE, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_SECURITY_LIST
+from qpy.event_manager import EVENT_ORDERBOOK_SNAPSHOT, EVENT_ORDERBOOK_SUBSCRIBE, EVENT_SECURITY_CONTRACT
+from qpy.event_manager import EVENT_REQ_ARRIVED, EVENT_RESP_ARRIVED
 from qpy.message_indexer import MessageIndexer
 from qpy.protocol_handler import JsonProtocolHandler, QMessage
 from decimal import Decimal
@@ -19,9 +23,10 @@ class QuikBridgeMessage(object):
 
 
 class QuikBridge(EventAware):
-    def __init__(self, sock):
+    def __init__(self, sock, logger=None):
         super().__init__()
-        self.phandler = JsonProtocolHandler(sock)
+        self.logger = logger or print  # Default to print if no logger provided
+        self.phandler = JsonProtocolHandler(sock, logger=self.logger)
         self.register_handlers()
         self.indexer = MessageIndexer()
         self.message_registry = {}
@@ -58,12 +63,18 @@ class QuikBridge(EventAware):
             msg.param_name = meta_data["param_name"]
 
         self.message_registry[str(id)] = msg
-    
+
     def sayHello(self):
         return self.send_request({"method": "invoke", "function": "PrintDbgStr", "arguments": ["Hello from python!"]}, {"message_type": "hello"})
 
     def getClassesList(self):
         return self.send_request({"method": "invoke", "function": "getClassesList", "arguments": []}, {"message_type": "classes_list"})
+
+    def getSecurityInfo(self, class_code, sec_code):
+        return self.send_request({"method": "invoke", "function": "getSecurityInfo", "arguments": [class_code, sec_code]}, {"message_type": "security_contract", "class_code": class_code, "sec_code": sec_code})
+
+    def getClassSecurities(self, class_code):
+        return self.send_request({"method": "invoke", "function": "getClassSecurities", "arguments": [class_code]}, {"message_type": "class_securities", "class_code": class_code})
 
     def createDs(self, class_code, sec_code, interval):
         return self.send_request({"method": "invoke", "function": "CreateDataSource", "arguments": [class_code, sec_code, interval]},
@@ -80,20 +91,12 @@ class QuikBridge(EventAware):
         return self.send_request({"method": "invoke", "object": datasource, "function": "Close", "arguments": []}, {"message_type": "close_datasource", "datasource": datasource})
 
     def subscribeToOrderBook(self, class_code, sec_code):
-        # return self.send_request(
-        #     {"method": "invoke", "function": "Subscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
-        #     {"message_type": "subscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
-        #     )
         return self.send_request(
             {"method": "subscribeQuotes", "class": class_code, "security": sec_code},
             {"message_type": "subscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
         )
 
     def unsubscribeToOrderBook(self, class_code, sec_code):
-        # return self.send_request(
-        #     {"method": "invoke", "function": "Unsubscribe_Level_II_Quotes", "arguments": [class_code, sec_code]}, 
-        #     {"message_type": "unsubscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
-        #     )
         return self.send_request(
             {"method": "unsubscribeQuotes", "class": class_code, "security": sec_code},
             {"message_type": "unsubscribe_orderbook", "class_code": class_code, "sec_code": sec_code}
@@ -113,7 +116,7 @@ class QuikBridge(EventAware):
 
     def getOrderBook(self, class_code, sec_code):
         return self.send_request(
-            {"method": "invoke", "function": "getQuoteLevel2", "arguments": [class_code, sec_code]}, 
+            {"method": "invoke", "function": "getQuoteLevel2", "arguments": [class_code, sec_code]},
             {"message_type": "get_orderbook", "class_code": class_code, "sec_code": sec_code}
             )
 
@@ -157,9 +160,9 @@ class QuikBridge(EventAware):
             }
             if "bid_count" in quotes.keys() and "offer_count" in quotes.keys() and Decimal(quotes["bid_count"]) > 0 and Decimal(quotes["offer_count"]) > 0:
                 event_data["order_book"] = quotes
-                event = Event(EVENT_ORDERBOOK, event_data)
+                event = Event(EVENT_ORDERBOOK_SNAPSHOT, event_data)
                 self.fire(event)
-            
+
         self.phandler.sendAns(id, {"method": "return", "result": True})
 
     def on_resp(self, event: Event):
@@ -167,7 +170,7 @@ class QuikBridge(EventAware):
             return
         data = event.data.data
         quik_message = None
-        
+
         if event.data.id is not None:
             quik_message = self.message_registry[str(event.data.id)] # type: QuikBridgeMessage
         event_data = {
@@ -183,13 +186,19 @@ class QuikBridge(EventAware):
             elif quik_message.message_type == "classes_list":
                 event_data["classes"] = data["result"][0]
                 event_type = EVENT_MARKET
+            elif quik_message.message_type == "class_securities":
+                event_data["securities"] = data["result"][0]
+                event_type = EVENT_SECURITY_LIST
+            elif quik_message.message_type == "security_contract":
+                event_data["contract"] = data["result"][0]
+                event_type = EVENT_SECURITY_CONTRACT
             elif quik_message.message_type == "subscribe_orderbook":
                 event_type = EVENT_ORDERBOOK_SUBSCRIBE
                 event_data['subscription_type'] = 'orderbook'
             elif quik_message.message_type == "get_orderbook":
                 for entry in data["result"]:
                     if "bid_count" in entry.keys() and "offer_count" in entry.keys():
-                        event_type = EVENT_ORDERBOOK
+                        event_type = EVENT_ORDERBOOK_SNAPSHOT
                         event_data["order_book"] = entry
             elif quik_message.message_type == "close_datasource":
                 event_type = EVENT_CLOSE
@@ -208,4 +217,4 @@ class QuikBridge(EventAware):
         else:
             event_string = event.to_json()
             print(f"UNKNOWN RESPOSE: {event_string}")
-        
+

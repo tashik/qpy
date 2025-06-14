@@ -1,4 +1,5 @@
 import socket
+import logging
 from qpy.event_manager import EVENT_BAR, EVENT_CALLBACK_INSTALLED, EVENT_CLOSE, EVENT_ORDERBOOK_SNAPSHOT, EVENT_DATASOURCE_SET, EVENT_MARKET, EVENT_QUOTESTABLE_PARAM_UPDATE, Event
 
 from qpy.quik_bridge import QuikBridge
@@ -68,7 +69,7 @@ class QuikConnectorTest(object):
         self.qbridge.register(EVENT_CALLBACK_INSTALLED, self.on_ds_update_handler_installed)
         self.qbridge.register(EVENT_CLOSE, self.on_ds_close)
         self.qbridge.register(EVENT_QUOTESTABLE_PARAM_UPDATE, self.on_quotes_table_update)
-        
+
     def nextStep(self):
         if not self.msgWasSent:
             self.test_say_hello()
@@ -134,7 +135,7 @@ if __name__ == "__main__":
     sock.connect(server_address)
     sock.setblocking(0)
 
-    bridge = QuikBridge(sock)
+    bridge = QuikBridge(sock, logger=logging.info)
     tester = QuikConnectorTest(bridge)
 
     sock.setblocking(0)
@@ -142,5 +143,5 @@ if __name__ == "__main__":
         rrRes = tester.qbridge.phandler.readyRead()
         if not rrRes:
             tester.nextStep()
-    
+
     print("finished")

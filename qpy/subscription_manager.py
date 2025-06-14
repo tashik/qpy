@@ -1,6 +1,6 @@
 from qpy.quik_bridge import QuikBridge
 
-from qpy.event_manager import Event, EVENT_ORDERBOOK, EVENT_ORDERBOOK_SNAPSHOT, EVENT_ORDERBOOK_SUBSCRIBE
+from qpy.event_manager import Event, EVENT_ORDERBOOK_SNAPSHOT, EVENT_ORDERBOOK_SUBSCRIBE
 
 SUBSCRIPTION_ORDERBOOK = "orderbook"
 SUBSCRIPTION_QUOTESTABLE = "quotestable"
@@ -11,7 +11,7 @@ class SubscriptionManager(object):
 
         # self.param_list = [
         #     'CLASS_CODE',
-        #     'CODE', 
+        #     'CODE',
         #     'MAT_DATE',
         #     'OPTIONBASE',
         #     'STRIKE',
@@ -49,14 +49,14 @@ class SubscriptionManager(object):
 
 
     def register_handlers(self):
-        self.qbridge.register(EVENT_ORDERBOOK, self.on_orderbook_update)
+        self.qbridge.register(EVENT_ORDERBOOK_SNAPSHOT, self.on_orderbook_update)
         self.qbridge.register(EVENT_ORDERBOOK_SUBSCRIBE, self.on_orderbook_subscribe)
-                
+
     def subscribe(self, subscription_type, class_code, sec_code):
         subscription_key = self.build_key (subscription_type, class_code, sec_code)
         if subscription_key in self.target_subscriptions.keys():
             return
-        
+
         self.target_subscriptions[subscription_key] = 0
 
         if subscription_type == SUBSCRIPTION_ORDERBOOK:
@@ -82,7 +82,7 @@ class SubscriptionManager(object):
             del self.target_subscriptions[subscription_key]
             self.pending_subscriptions.pop(subscription_key, None)
             self.active_subscriptions.pop(subscription_key, None)
-            
+
 
     def build_key(self, tp, cc, sc):
         return "_".join((tp, cc, sc))
