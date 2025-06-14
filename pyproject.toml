@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qpy-bridge"
+version = "0.1.0"
+description = "A Python client for QLUA socket bridge"
+authors = [
+    { name = "Natalya Andriets, aka tashik", email = "patrinat@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+dependencies = []  # Add runtime dependencies here, e.g. "requests"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-mock"
+]
+
+[tool.setuptools.packages.find]
+where = ["qpy"]
